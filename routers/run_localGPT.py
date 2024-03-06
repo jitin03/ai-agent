@@ -35,7 +35,7 @@ from .constants import (
     MODEL_BASENAME,
     MAX_NEW_TOKENS,
     MODELS_PATH,
-    CHROMA_SETTINGS,
+    # CHROMA_SETTINGS,
 )
 
 

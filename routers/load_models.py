@@ -55,8 +55,9 @@ def load_quantized_model_gguf_ggml(model_id, model_basename, device_type, loggin
         if device_type.lower() == "cuda":
             kwargs["n_gpu_layers"] = N_GPU_LAYERS  # set this based on your GPU
         callback_manager = CallbackManager([StreamingStdOutCallbackHandler()])
-        llm = LlamaCpp(callback_manager=callback_manager, **kwargs)
-        llm.streaming= True
+        # llm = LlamaCpp(callback_manager=callback_manager, **kwargs)
+        llm = LlamaCpp(**kwargs)
+        # llm.streaming= True
         print("LLM loaded\n")
         return llm
     except TypeError:

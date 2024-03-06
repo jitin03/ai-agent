@@ -20,7 +20,6 @@ from constants import (
 )
 
 
-
 def file_log(logentry):
     file1 = open("file_ingest.log", "a")
     file1.write(logentry + "\n")
@@ -168,21 +167,19 @@ def main(device_type):
     embeddings = get_embeddings(device_type)
 
     logging.info(f"Loaded embeddings from {EMBEDDING_MODEL_NAME}")
-    
-    rds = Redis.from_documents(
-    documents=texts,
-    embedding=embeddings,
-    index_name=INDEX_NAME,
-    redis_url=REDIS_URL,
-    index_schema=INDEX_SCHEMA,
-)
+
     # db = Chroma.from_documents(
     #     texts,
     #     embeddings,
     #     persist_directory=PERSIST_DIRECTORY,
     #     client_settings=CHROMA_SETTINGS,
     # )
-
+    rds = Redis.from_documents(
+    documents=texts,
+    embedding=embeddings,
+    index_name=INDEX_NAME,
+    redis_url=REDIS_URL,
+    index_schema=INDEX_SCHEMA,)
 
 if __name__ == "__main__":
     logging.basicConfig(

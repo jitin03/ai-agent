@@ -22,13 +22,20 @@ from langchain.vectorstores import Chroma
 from werkzeug.utils import secure_filename
 from typing import AsyncIterable
 from fastapi.middleware.cors import CORSMiddleware
-from .constants import CHROMA_SETTINGS, EMBEDDING_MODEL_NAME, PERSIST_DIRECTORY, MODEL_ID, MODEL_BASENAME
+from .constants import (
+# CHROMA_SETTINGS,
+    EMBEDDING_MODEL_NAME, PERSIST_DIRECTORY, MODEL_ID, MODEL_BASENAME)
 from fastapi.responses import StreamingResponse
 # API queue addition
 from threading import Lock
 from starlette import status
 import sys
 import textwrap
+from langchain.vectorstores.redis import Redis
+from redisvl.extensions.llmcache import SemanticCache
+from .rag_redis.config import (
+    INDEX_NAME,INDEX_SCHEMA,REDIS_URL
+)
 request_lock = Lock()
 
 
@@ -67,36 +74,20 @@ EMBEDDINGS = HuggingFaceInstructEmbeddings(model_name=EMBEDDING_MODEL_NAME, mode
 #     )
 
 # load the vectorstore
-DB = Chroma(
-    persist_directory=PERSIST_DIRECTORY,
-    embedding_function=EMBEDDINGS,
-    client_settings=CHROMA_SETTINGS,
-)
-
-RETRIEVER = DB.as_retriever()
-
-LLM = load_model(device_type=DEVICE_TYPE, model_id=MODEL_ID, model_basename=MODEL_BASENAME,LOGGING=logging)
-prompt, memory = get_prompt_template(promptTemplate_type="llama", history=True)
-
-# QA = retrieval_qa_pipline(device_type, use_history, promptTemplate_type=model_type)
-QA = RetrievalQA.from_chain_type(
-    llm=LLM,
-    chain_type="stuff",
-    retriever=RETRIEVER,
-    return_source_documents=SHOW_SOURCES,
-    callbacks=callback_manager,
-    chain_type_kwargs={"prompt": prompt, "memory": memory},
-)
+# DB = Chroma(
+#     persist_directory=PERSIST_DIRECTORY,
+#     embedding_function=EMBEDDINGS,
+#     client_settings=CHROMA_SETTINGS,
+# )
 
 router = APIRouter(
     prefix='/api/run-agent',
     tags=['agent']
 )
 
+res = None
+answer = None
 ## Cite sources
-
-
-
 def wrap_text_preserve_newlines(text, width=110):
     # Split the input text into lines based on newline characters
     lines = text.split('\n')
@@ -164,23 +155,23 @@ async def run_ingest_route():
         if result.returncode != 0:
             return "Script execution failed: {}".format(result.stderr.decode("utf-8")), 500
         # load the vectorstore
-        DB = Chroma(
-            persist_directory=PERSIST_DIRECTORY,
-            embedding_function=EMBEDDINGS,
-            client_settings=CHROMA_SETTINGS,
-        )
-        RETRIEVER = DB.as_retriever()
-        prompt, memory = get_prompt_template(promptTemplate_type="llama", history=False)
+        # DB = Chroma(
+        #     persist_directory=PERSIST_DIRECTORY,
+        #     embedding_function=EMBEDDINGS,
+        #     client_settings=CHROMA_SETTINGS,
+        # )
+        # RETRIEVER = DB.as_retriever()
+        # prompt, memory = get_prompt_template(promptTemplate_type="llama", history=False)
 
-        QA = RetrievalQA.from_chain_type(
-            llm=LLM,
-            chain_type="stuff",
-            retriever=RETRIEVER,
-            return_source_documents=SHOW_SOURCES,
-            chain_type_kwargs={
-                "prompt": prompt,
-            },
-        )
+        # QA = RetrievalQA.from_chain_type(
+        #     llm=LLM,
+        #     chain_type="stuff",
+        #     retriever=RETRIEVER,
+        #     return_source_documents=SHOW_SOURCES,
+        #     chain_type_kwargs={
+        #         "prompt": prompt,
+        #     },
+        # )
         return "Script executed successfully: {}".format(result.stdout.decode("utf-8")), 200
     except Exception as e:
         # return f"Error occurred: {str(e)}", 500
@@ -193,30 +184,76 @@ async def prompt_agent(request: Prompt):
     print(type(request))
     global QA
     global request_lock
+    rds = Redis.from_existing_index(
+    embedding=EMBEDDINGS,
+    index_name=INDEX_NAME,
+    schema=INDEX_SCHEMA,
+    redis_url=REDIS_URL,
+)
+    rds.similarity_search_with_score(query="Profit margins", k=4)
+    RETRIEVER = rds.as_retriever(search_type="mmr")
+    # RETRIEVER = DB.as_retriever()
+
+    LLM = load_model(device_type=DEVICE_TYPE, model_id=MODEL_ID, model_basename=MODEL_BASENAME,LOGGING=logging)
+    prompt, memory = get_prompt_template(promptTemplate_type="llama", history=True)
+
+    # QA = retrieval_qa_pipline(device_type, use_history, promptTemplate_type=model_type)
+    QA = RetrievalQA.from_chain_type(
+        llm=LLM,
+        chain_type="stuff",
+        retriever=RETRIEVER,
+        return_source_documents=SHOW_SOURCES,
+        callbacks=callback_manager,
+        chain_type_kwargs={"prompt": prompt, "memory": memory},
+    )
+
     user_prompt = request.prompt
     if user_prompt:
         logging.info(f"Running on: {DEVICE_TYPE}")
         logging.info(f"Display Source Documents set to: {SHOW_SOURCES}")
-        
+        llmcache = SemanticCache(
+        name="llmcache",
+         ttl=360,
+        redis_url=REDIS_URL
+        )
         # Acquire the lock before processing the prompt
         with request_lock:
             # print(f'User Prompt: {user_prompt}')              
             # Get the answer from the chain
-            res = QA(user_prompt)
-            process_llm_response(res)
-            answer, docs = res["result"], res["source_documents"]
-            print("streaming now")
-            print(answer)
+            test= llmcache.check(prompt=user_prompt,return_fields=["prompt", "response"])
+            print("test: ")
+            print(test)
+            print("test: ")
+            if response := llmcache.check(prompt=user_prompt,return_fields=["prompt", "response"]):
+                print("from cace only")
+                res = response[0]["response"]
+                answer = res
+            else:
+                print("fresh from llm")
+                res = QA(user_prompt)
+                process_llm_response(res)
+                answer, docs = res["result"], res["source_documents"]
+                answer = wrap_text_preserve_newlines(res['result'])
+                print(answer)
+
+            
             prompt_response_dict = {
                 "Prompt": user_prompt,
-                "Answer": wrap_text_preserve_newlines(res['result']),
+                "Answer": answer,
             }
+            print("from redis cache")
+        llmcache.store(
+        prompt=user_prompt,
+        response=answer,
+        metadata={}
+            )
 
-            prompt_response_dict["Sources"] = []
-            for document in docs:
-                prompt_response_dict["Sources"].append(
-                    (os.path.basename(str(document.metadata["source"])), str(document.page_content))
-                )
+            # Uncomment for Debugging only
+            # prompt_response_dict["Sources"] = []
+            # for document in docs:
+            #     prompt_response_dict["Sources"].append(
+            #         (os.path.basename(str(document.metadata["source"])), str(document.page_content))
+            #     )
         # return StreamingResponse(prompt_response_dict["Answer"], media_type="text/event-stream")
         return prompt_response_dict, 200
     else:

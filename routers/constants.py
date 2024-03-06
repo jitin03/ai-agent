@@ -1,7 +1,7 @@
 import os
 
 # from dotenv import load_dotenv
-from chromadb.config import Settings
+# from chromadb.config import Settings
 
 # https://python.langchain.com/en/latest/modules/indexes/document_loaders/examples/excel.html?highlight=xlsx#microsoft-excel
 from langchain.document_loaders import CSVLoader, PDFMinerLoader, TextLoader, UnstructuredExcelLoader, Docx2txtLoader
@@ -24,10 +24,10 @@ MODELS_PATH =f"{ROOT_DIRECTORY}/models"
 INGEST_THREADS = os.cpu_count() or 8
 
 # Define the Chroma settings
-CHROMA_SETTINGS = Settings(
-    anonymized_telemetry=False,
-    is_persistent=True,
-)
+# CHROMA_SETTINGS = Settings(
+#     anonymized_telemetry=False,
+#     is_persistent=True,
+# )
 
 # Context Window and Max New Tokens
 CONTEXT_WINDOW_SIZE = 4096
