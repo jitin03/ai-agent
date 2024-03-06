@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Path
 import logging
+import asyncio
 import os
 import shutil
 import subprocess
@@ -14,17 +15,20 @@ from langchain.callbacks.manager import CallbackManager
 from .run_localGPT import load_model, retrieval_qa_pipline
 from .prompt_template_utils import get_prompt_template
 from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler  # for streaming response
+from langchain.callbacks import AsyncIteratorCallbackHandler
 # from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
 from langchain.callbacks.manager import CallbackManager
 from langchain.vectorstores import Chroma
 from werkzeug.utils import secure_filename
-
+from typing import AsyncIterable
+from fastapi.middleware.cors import CORSMiddleware
 from .constants import CHROMA_SETTINGS, EMBEDDING_MODEL_NAME, PERSIST_DIRECTORY, MODEL_ID, MODEL_BASENAME
-
+from fastapi.responses import StreamingResponse
 # API queue addition
 from threading import Lock
 from starlette import status
 import sys
+import textwrap
 request_lock = Lock()
 
 
@@ -89,8 +93,52 @@ router = APIRouter(
     tags=['agent']
 )
 
+## Cite sources
+
+
+
+def wrap_text_preserve_newlines(text, width=110):
+    # Split the input text into lines based on newline characters
+    lines = text.split('\n')
+
+    # Wrap each line individually
+    wrapped_lines = [textwrap.fill(line, width=width) for line in lines]
+
+    # Join the wrapped lines back together using newline characters
+    wrapped_text = '\n'.join(wrapped_lines)
+
+    return wrapped_text
+
+def process_llm_response(llm_response):
+    print(wrap_text_preserve_newlines(llm_response['result']))
+    print('\n\nSources:')
+    for source in llm_response["source_documents"]:
+        print(source.metadata['source'])
+
 class Prompt(BaseModel):
     prompt: str
+
+async def send_message(content: str) -> AsyncIterable[str]:
+    callback = AsyncIteratorCallbackHandler()
+    model = ChatOpenAI(
+        streaming=True,
+        verbose=True,
+        callbacks=[callback],
+    )
+
+    task = asyncio.create_task(
+        model.agenerate(messages=[[HumanMessage(content=content)]])
+    )
+
+    try:
+        async for token in callback.aiter():
+            yield token
+    except Exception as e:
+        print(f"Caught exception: {e}")
+    finally:
+        callback.done.set()
+
+    await task
 
 
 @router.get("/run_ingest", status_code=status.HTTP_200_OK)
@@ -155,11 +203,13 @@ async def prompt_agent(request: Prompt):
             # print(f'User Prompt: {user_prompt}')              
             # Get the answer from the chain
             res = QA(user_prompt)
+            process_llm_response(res)
             answer, docs = res["result"], res["source_documents"]
-            print(docs)
+            print("streaming now")
+            print(answer)
             prompt_response_dict = {
                 "Prompt": user_prompt,
-                "Answer": answer,
+                "Answer": wrap_text_preserve_newlines(res['result']),
             }
 
             prompt_response_dict["Sources"] = []
@@ -167,7 +217,7 @@ async def prompt_agent(request: Prompt):
                 prompt_response_dict["Sources"].append(
                     (os.path.basename(str(document.metadata["source"])), str(document.page_content))
                 )
-
+        # return StreamingResponse(prompt_response_dict["Answer"], media_type="text/event-stream")
         return prompt_response_dict, 200
     else:
         raise HTTPException(status_code=404, detail='No user prompt received')

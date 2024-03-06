@@ -4,7 +4,7 @@
 /models
 /routers/DB
 /routers/models
-/routers/SOURCE_DOCUMENTS
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

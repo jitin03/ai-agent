@@ -8,6 +8,8 @@ if sys.platform != "darwin":
 from huggingface_hub import hf_hub_download
 from langchain.llms import LlamaCpp
 from transformers import AutoModelForCausalLM, AutoTokenizer, LlamaForCausalLM, LlamaTokenizer, BitsAndBytesConfig
+from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
+from langchain.callbacks.manager import CallbackManager
 
 from .constants import CONTEXT_WINDOW_SIZE, MAX_NEW_TOKENS, MODELS_PATH, N_BATCH, N_GPU_LAYERS
 
@@ -52,8 +54,11 @@ def load_quantized_model_gguf_ggml(model_id, model_basename, device_type, loggin
             kwargs["n_gpu_layers"] = 1
         if device_type.lower() == "cuda":
             kwargs["n_gpu_layers"] = N_GPU_LAYERS  # set this based on your GPU
-
-        return LlamaCpp(**kwargs)
+        callback_manager = CallbackManager([StreamingStdOutCallbackHandler()])
+        llm = LlamaCpp(callback_manager=callback_manager, **kwargs)
+        llm.streaming= True
+        print("LLM loaded\n")
+        return llm
     except TypeError:
         if "ggml" in model_basename:
             logging.INFO("If you were using GGML model, LLAMA-CPP Dropped Support, Use GGUF Instead")
