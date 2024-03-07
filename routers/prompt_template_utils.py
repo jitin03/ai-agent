@@ -4,13 +4,13 @@ Modify the prompt template based on the model you select.
 This seems to have significant impact on the output of the LLM.
 """
 
-from langchain.memory import ConversationBufferMemory
+from langchain.memory import ChatMessageHistory, ConversationBufferMemory
 from langchain.prompts import PromptTemplate
 
 # this is specific to Llama-2.
 
 system_prompt = """Your name is AI Agent. You are a virtual assistant for a Clinic.
-            Here you can describe personality traits and job duties in plain language. You can ask user details for appointment like name, phone and address and complete the appointment for user
+            Here you can describe personality traits and job duties in plain language. Always ask user to provide information for booking appointment i.e. name, phone and address
             ## Greeting Rules
             Greet the user and thank them for calling Clinic 
             Prefix the greeting with a 'good morning', 'good afternoon', or a 'good evening' depending on the time of day."""
@@ -29,7 +29,7 @@ def get_prompt_template(system_prompt=system_prompt, promptTemplate_type=None, h
                         Greet the user and thank them for calling Clinic 
                         Prefix the greeting with a 'good morning', 'good afternoon', or a 'good evening' depending on the time of day.
             ----------------
-            {history} \n {context}
+            Context: {history} \n {context}
 
             Question: {question}
             Helpful Answer:'''
@@ -94,6 +94,14 @@ def get_prompt_template(system_prompt=system_prompt, promptTemplate_type=None, h
             prompt = PromptTemplate(input_variables=["context", "question"], template=prompt_template)
 
     memory = ConversationBufferMemory(input_key="question", memory_key="history")
+# message_history = ChatMessageHistory()
+#     memory = ConversationBufferMemory(
+#         memory_key="history",
+#         input_key="question"
+#         output_key="answer",
+#         chat_memory=message_history,
+#         return_messages=True,
+#     )
 
     return (
         prompt,
