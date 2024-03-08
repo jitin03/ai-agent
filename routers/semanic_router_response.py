@@ -29,5 +29,5 @@ def greetings():
 
 def done_task():
     return(
-        "Thank you for providing your details with us, We have booked your appointment and will share you the details on your contact number"
+        "Thank you for providing your details with us, We have booked your appointment and will share you the details on your contact number. Do you need any further assistance?"
     )

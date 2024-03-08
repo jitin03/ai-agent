@@ -395,8 +395,8 @@ async def prompt_agent(request: Prompt):
         elif route.name == "greetings":
             print("inside greetings now")
             answer = greetings()
-        # elif route.name == "done_task":
-        #     answer = done_task()
+        elif route.name == "done_task":
+            answer = done_task()
 
 # quickly check the cache with a slightly different prompt (before invoiking an LLM)
 
