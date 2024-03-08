@@ -39,6 +39,7 @@ import sys
 import textwrap
 from langchain.vectorstores.redis import Redis
 from redisvl.extensions.llmcache import SemanticCache
+encoder = HuggingFaceEncoder()
 from .rag_redis.config import (
     INDEX_NAME, INDEX_SCHEMA, REDIS_URL
 )
@@ -338,13 +339,17 @@ async def prompt_agent(request: Prompt):
     show_sources= False
     use_history= True
     model_type="llama"
+    
     logging.info(f"Running on: {device_type}")
     logging.info(f"Display Source Documents set to: {show_sources}")
     logging.info(f"Use history set to: {use_history}")
     qa,llm = retrieval_qa_pipline(device_type, use_history, promptTemplate_type=model_type)
-    encoder = HuggingFaceEncoder()
+    
     rl = RouteLayer(encoder=encoder, routes=routes, llm=llm)
     user_prompt = request.prompt
+    global answer
+    
+    
     if user_prompt:
         llmcache = SemanticCache(
         name="llmcache",
@@ -352,6 +357,8 @@ async def prompt_agent(request: Prompt):
         redis_url=REDIS_URL
         )
         route = rl(user_prompt)
+        print("route.name")
+        print(route.name)
         if route.name == "appointment_inquiry" or  route.name== None:
             
             if response := llmcache.check(prompt=user_prompt,return_fields=["prompt", "response"]):
@@ -380,14 +387,16 @@ async def prompt_agent(request: Prompt):
             metadata={}
                 )
             
-        elif route.name == "policits":
-            answer += politics()
+        elif route.name == "politics":
+            print("inside politics now")
+            answer = politics()
         elif route.name == "chitchat":
             answer = chitchat()
         elif route.name == "greetings":
+            print("inside greetings now")
             answer = greetings()
-        elif route.name == "done_task":
-            answer = done_task()
+        # elif route.name == "done_task":
+        #     answer = done_task()
 
 # quickly check the cache with a slightly different prompt (before invoiking an LLM)
 

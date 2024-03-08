@@ -30,12 +30,12 @@ chitchat = Route(
     ],
 )
 
-chitchat = Route(
+greetings = Route(
     name="greetings",
     utterances=[
-    " Who is this?",
+    "Who is this?",
     "Is this a clinic",
-    "May I speak to the doctor"
+    "May I speak to the doctor",
         "Hello Good morning",
         "Hello Good afternoon",
         "Hello Good evening",
@@ -44,7 +44,7 @@ chitchat = Route(
     ],
 )
 
-chitchat = Route(
+done_task = Route(
     name="done_task",
     utterances=[
     "My name is pooja and contact number is 9780032269 from jagatpurate",
@@ -72,6 +72,6 @@ appointment_route = Route(
 
 
 
-routes = [politics,chitchat,appointment_route]
+routes = [politics,chitchat,appointment_route,greetings,done_task]
 
 
