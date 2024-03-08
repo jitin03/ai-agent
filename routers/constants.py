@@ -15,6 +15,7 @@ ROOT_DIRECTORY = os.path.dirname(os.path.realpath(__file__))
 print(ROOT_DIRECTORY)
 # Define the folder for storing database
 SOURCE_DIRECTORY = f"{ROOT_DIRECTORY}/SOURCE_DOCUMENTS"
+# SOURCE_DIRECTORY = "SOURCE_DOCUMENTS"
 
 PERSIST_DIRECTORY = f"{ROOT_DIRECTORY}/DB"
 

@@ -15,7 +15,9 @@ system_prompt = """
             ## Greeting Rules
             Greet the user and thank them for calling Clinic
             Prefix the greeting with a 'good morning', 'good afternoon', or a 'good evening' depending on the time of day."""
-
+     ## Greeting Rules
+                                    #  Greet the user and thank them for calling Clinic
+                                    #  Prefix the greeting with a 'good morning', 'good afternoon', or a 'good evening' depending on the time of day
 
 def get_prompt_template(system_prompt=system_prompt, promptTemplate_type=None, history=False):
     if promptTemplate_type == "llama":
@@ -26,9 +28,7 @@ def get_prompt_template(system_prompt=system_prompt, promptTemplate_type=None, h
             prompt_template = """
             ### Instruction: You're a AI Clinic support agent that is talking to a patients. You can ask user details for appointment like name, phone and address and complete the appointment for user
                  Here you can describe personality traits and job duties in plain language.
-                                    ## Greeting Rules
-                                     Greet the user and thank them for calling Clinic
-                                     Prefix the greeting with a 'good morning', 'good afternoon', or a 'good evening' depending on the time of day
+                               
                 Use only the chat history and the following information
                 {context}
                 to answer in a helpful manner to the question. If you don't know the answer -

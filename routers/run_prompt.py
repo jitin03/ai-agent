@@ -8,14 +8,16 @@ import argparse
 from langchain_groq import ChatGroq
 from pydantic import BaseModel
 import torch
-
+from semantic_router.encoders import HuggingFaceEncoder
+from .semantic_routers import routes
+from .semanic_router_response import appointment_inquiry,politics,chitchat,greetings,done_task
 from .utils import log_to_csv
 from .utils import get_embeddings
 from langchain.chains import RetrievalQA
 from langchain.embeddings import HuggingFaceInstructEmbeddings
 from langchain.callbacks.manager import CallbackManager
 # from langchain.embeddings import HuggingFaceEmbeddings
-
+from semantic_router import RouteLayer
 from .prompt_template_utils import get_prompt_template
 from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler  # for streaming response
 from langchain.callbacks import AsyncIteratorCallbackHandler
@@ -280,29 +282,8 @@ def retrieval_qa_pipline(device_type, use_history, promptTemplate_type="llama"):
             },
         )
 
-    return qa
+    return qa,llm
 
-async def send_message(content: str) -> AsyncIterable[str]:
-    callback = AsyncIteratorCallbackHandler()
-    model = ChatOpenAI(
-        streaming=True,
-        verbose=True,
-        callbacks=[callback],
-    )
-
-    task = asyncio.create_task(
-        model.agenerate(messages=[[HumanMessage(content=content)]])
-    )
-
-    try:
-        async for token in callback.aiter():
-            yield token
-    except Exception as e:
-        print(f"Caught exception: {e}")
-    finally:
-        callback.done.set()
-
-    await task
 
 
 @router.get("/run_ingest", status_code=status.HTTP_200_OK)
@@ -360,7 +341,9 @@ async def prompt_agent(request: Prompt):
     logging.info(f"Running on: {device_type}")
     logging.info(f"Display Source Documents set to: {show_sources}")
     logging.info(f"Use history set to: {use_history}")
-    qa = retrieval_qa_pipline(device_type, use_history, promptTemplate_type=model_type)
+    qa,llm = retrieval_qa_pipline(device_type, use_history, promptTemplate_type=model_type)
+    encoder = HuggingFaceEncoder()
+    rl = RouteLayer(encoder=encoder, routes=routes, llm=llm)
     user_prompt = request.prompt
     if user_prompt:
         llmcache = SemanticCache(
@@ -368,29 +351,43 @@ async def prompt_agent(request: Prompt):
          ttl=360,
         redis_url=REDIS_URL
         )
-        if response := llmcache.check(prompt=user_prompt,return_fields=["prompt", "response"]):
+        route = rl(user_prompt)
+        if route.name == "appointment_inquiry" or  route.name== None:
+            
+            if response := llmcache.check(prompt=user_prompt,return_fields=["prompt", "response"]):
         # if False:
-            print(response)
-            res =response[0]["response"]
-            answer= res
-            type(res)
-        else:
-            print("Empty cache")
-            res = qa(user_prompt)
-            # res = qa.predict({"query": query})
-            print("called llm and replying")
-            process_llm_response(res)
-            answer, docs = res["result"], res["source_documents"]
-            # for document in docs:
-            #         prompt_response_dict["Sources"].append(
-            #             (os.path.basename(str(document.metadata["source"])), str(document.page_content))
-            #         )
-        print("from redis cache")
-        llmcache.store(
-        prompt=user_prompt,
-        response=answer,
-        metadata={}
-            )
+                print(response)
+                res =response[0]["response"]
+                answer= res
+                type(res)
+            else:
+                print("Empty cache")
+                res = qa(user_prompt)
+                # res = qa.predict({"query": query})
+                print("called llm and replying")
+                process_llm_response(res)
+                answer, docs = res["result"], res["source_documents"]
+
+            # res = qa(query)
+            # print("called llm and replying")
+            # process_llm_response(res)
+            # answer, docs = res["result"], res["source_documents"]
+
+            print("from redis cache")
+            llmcache.store(
+            prompt=user_prompt,
+            response=answer,
+            metadata={}
+                )
+            
+        elif route.name == "policits":
+            answer += politics()
+        elif route.name == "chitchat":
+            answer = chitchat()
+        elif route.name == "greetings":
+            answer = greetings()
+        elif route.name == "done_task":
+            answer = done_task()
 
 # quickly check the cache with a slightly different prompt (before invoiking an LLM)
 
