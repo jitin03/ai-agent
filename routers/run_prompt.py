@@ -2,6 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException, Path
 import logging
 import asyncio
 import os
+import json
+import redis
 import shutil
 import subprocess
 import argparse
@@ -27,6 +29,7 @@ from langchain.vectorstores import Chroma
 from werkzeug.utils import secure_filename
 from typing import AsyncIterable
 from fastapi.middleware.cors import CORSMiddleware
+from typing import List
 from .constants import (
     # CHROMA_SETTINGS,
     EMBEDDING_MODEL_NAME, PERSIST_DIRECTORY, MODEL_ID, MODEL_BASENAME,
@@ -54,9 +57,21 @@ from .load_models import (
     load_quantized_model_qptq,
     load_full_model,
 )
+from langchain.schema import (
+    AIMessage,
+    HumanMessage,
+    SystemMessage
+)
+
+ROLE_CLASS_MAP = {
+    "AI": AIMessage,
+    "Human": HumanMessage,
+    "system": SystemMessage
+    
+}
 
 request_lock = Lock()
-
+r = redis.Redis(host='localhost', port=6379, db=0)
 if torch.backends.mps.is_available():
     DEVICE_TYPE = "mps"
 elif torch.cuda.is_available():
@@ -105,7 +120,35 @@ router = APIRouter(
 
 res = None
 answer = None
+# conversation_id="123"
+conversation_history=[]
+INTIAL_CONVERSTATION = {"conversation": {"role": "system", "content": "You are a helpful assistant."}}
+class Message(BaseModel):
+    role: str
+    content: str
 
+class Conversation(BaseModel):
+    conversation: List[Message]
+    
+def create_messages(conversation):
+    messages = []
+    for message in conversation:
+        print(message)
+        # Get the role of the message
+        role = message["role"]
+        
+        # Get the content of the message
+        content = message["content"]
+        
+        # Get the corresponding message class from the ROLE_CLASS_MAP based on the role
+        message_class = ROLE_CLASS_MAP[role]
+        
+        # Instantiate the message class with the content and append it to the list of messages
+        message_object = message_class(content=content)
+        messages.append(message_object)
+    
+    return messages
+    # return [ROLE_CLASS_MAP[message.role](content=message.content) for message in conversation]
 
 ## Cite sources
 def wrap_text_preserve_newlines(text, width=110):
@@ -230,6 +273,7 @@ def retrieval_qa_pipline(device_type, use_history, promptTemplate_type="llama"):
 
    # store user queries and LLM responses in the semantic cache
     print(REDIS_URL)
+
     rds = Redis.from_existing_index(
     embedding=embeddings,
     index_name=INDEX_NAME,
@@ -244,8 +288,7 @@ def retrieval_qa_pipline(device_type, use_history, promptTemplate_type="llama"):
 
     # get the prompt template and memory if set by the user.
     prompt, memory = get_prompt_template(promptTemplate_type=promptTemplate_type, history=use_history)
-
-    print(memory)
+    
     # load the llm pipeline
     # llm = load_model(device_type, model_id=MODEL_ID, model_basename=MODEL_BASENAME, LOGGING=logging)
     llm = ChatGroq(temperature=0, groq_api_key="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", model_name="llama2-70b-4096")
@@ -333,8 +376,10 @@ async def run_ingest_route():
         raise HTTPException(status_code=500, detail='Something went wrong!.')
 
 
-@router.post("/prompt_agent", status_code=status.HTTP_200_OK)
-async def prompt_agent(request: Prompt):
+@router.post("/prompt_agent/{conversation_id}", status_code=status.HTTP_200_OK)
+async def prompt_agent(conversation_id:str,request: Prompt):
+    global conversation_history
+    global answer
     device_type ="mps"
     show_sources= False
     use_history= True
@@ -343,14 +388,24 @@ async def prompt_agent(request: Prompt):
     logging.info(f"Running on: {device_type}")
     logging.info(f"Display Source Documents set to: {show_sources}")
     logging.info(f"Use history set to: {use_history}")
-    qa,llm = retrieval_qa_pipline(device_type, use_history, promptTemplate_type=model_type)
-    
-    rl = RouteLayer(encoder=encoder, routes=routes, llm=llm)
+   
     user_prompt = request.prompt
-    global answer
+    
+    
+    existing_conversation_json = r.get(conversation_id)
+    if existing_conversation_json:
+        existing_conversation = json.loads(existing_conversation_json)
+        print("inside redis")
+        print(existing_conversation)
+        print("inside redis")
     
     
     if user_prompt:
+        conversation_history.append(INTIAL_CONVERSTATION["conversation"])
+        conversation_history.append({'role':'Human','content':user_prompt})
+        qa,llm = retrieval_qa_pipline(device_type, use_history=conversation_history, promptTemplate_type=model_type)
+    
+        rl = RouteLayer(encoder=encoder, routes=routes, llm=llm)
         llmcache = SemanticCache(
         name="llmcache",
          ttl=360,
@@ -359,6 +414,7 @@ async def prompt_agent(request: Prompt):
         route = rl(user_prompt)
         print("route.name")
         print(route.name)
+        
         if route.name == "appointment_inquiry" or  route.name== None:
             
             if response := llmcache.check(prompt=user_prompt,return_fields=["prompt", "response"]):
@@ -369,11 +425,13 @@ async def prompt_agent(request: Prompt):
                 type(res)
             else:
                 print("Empty cache")
+               
                 res = qa(user_prompt)
                 # res = qa.predict({"query": query})
                 print("called llm and replying")
                 process_llm_response(res)
                 answer, docs = res["result"], res["source_documents"]
+                
 
             # res = qa(query)
             # print("called llm and replying")
@@ -406,9 +464,15 @@ async def prompt_agent(request: Prompt):
         print(user_prompt)
         print("\n> Answer:")
         print(answer)
+        print("\n> history:")
+        conversation_history.append({'role':'AI','content':answer})
+        print(json.dumps(conversation_history))
+        r.set(conversation_id, json.dumps(conversation_history))
+        print(conversation_history)
         prompt_response_dict = {
                 "Prompt": user_prompt,
                 "Answer": answer,
+                
             }
         # log_to_csv(user_prompt,answer)
         return prompt_response_dict, 200
@@ -416,88 +480,3 @@ async def prompt_agent(request: Prompt):
         raise HTTPException(status_code=404, detail='No user prompt received')
 
   
-    # global QA
-    # global request_lock
-    # rds = Redis.from_existing_index(
-    #     embedding=EMBEDDINGS,
-    #     index_name=INDEX_NAME,
-    #     schema=INDEX_SCHEMA,
-    #     redis_url=REDIS_URL,
-    # )
-    # rds.similarity_search_with_score(query="Profit margins", k=4)
-    # RETRIEVER = rds.as_retriever(search_type="mmr")
-    # # RETRIEVER = DB.as_retriever()
-
-    # # LLM = load_model(device_type=DEVICE_TYPE, model_id=MODEL_ID, model_basename=MODEL_BASENAME, LOGGING=logging)
-    # LLM = ChatGroq(temperature=0, groq_api_key="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", model_name="llama2-70b-4096")
-    # prompt, memory = get_prompt_template(promptTemplate_type="llama", history=True)
-    
-    # print(memory)
-    # # QA = retrieval_qa_pipline(device_type, use_history, promptTemplate_type=model_type)
-    # QA = RetrievalQA.from_chain_type(
-    #     llm=LLM,
-    #     chain_type="stuff",
-    #     retriever=RETRIEVER,
-    #     return_source_documents=SHOW_SOURCES,
-    #     callbacks=callback_manager,
-    #     chain_type_kwargs={"prompt": prompt, "memory": memory},
-    # )
-    # print("memory")
-    # print(QA.combine_documents_chain.memory)
-
-    # user_prompt = request.prompt
-    # if user_prompt:
-    #     logging.info(f"Running on: {DEVICE_TYPE}")
-    #     logging.info(f"Display Source Documents set to: {SHOW_SOURCES}")
-    #     llmcache = SemanticCache(
-    #         name="llmcache",
-    #         ttl=360,
-    #         redis_url=REDIS_URL
-    #     )
-    #     # Acquire the lock before processing the prompt
-    #     with request_lock:
-    #         # print(f'User Prompt: {user_prompt}')              
-    #         # Get the answer from the chain
-    #         test = llmcache.check(prompt=user_prompt, return_fields=["prompt", "response"])
-    #         print("test: ")
-    #         print(test)
-    #         print("test: ")
-    #         if response := llmcache.check(prompt=user_prompt, return_fields=["prompt", "response"]):
-    #         # if False:
-    #             print("from cace only")
-    #             res = response[0]["response"]
-    #             answer = res
-    #         else:
-    #             print("fresh from llm")
-    #             res = QA(user_prompt)
-    #             process_llm_response(res)
-    #             answer, docs = res["result"], res["source_documents"]
-    #             # for document in docs:
-    #             #     prompt_response_dict["Sources"].append(
-    #             #         (os.path.basename(str(document.metadata["source"])), str(document.page_content))
-    #             #     )
-    #             answer = wrap_text_preserve_newlines(res['result'])
-    #             print(answer)
-               
-
-    #         prompt_response_dict = {
-    #             "Prompt": user_prompt,
-    #             "Answer": answer,
-    #         }
-    #         llmcache.store(
-    #                 prompt=user_prompt,
-    #                 response=answer,
-    #                 metadata={}
-    #             )
-
-
-
-    #     # Uncomment for Debugging only
-    #     # prompt_response_dict["Sources"] = []
-       
-    #     # return StreamingResponse(prompt_response_dict["Answer"], media_type="text/event-stream")
-    #     logging.info("Save chat history to csv")
-    
-    #     return prompt_response_dict, 200
-    # else:
-    #     raise HTTPException(status_code=404, detail='No user prompt received')

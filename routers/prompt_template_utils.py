@@ -19,21 +19,24 @@ system_prompt = """
                                     #  Greet the user and thank them for calling Clinic
                                     #  Prefix the greeting with a 'good morning', 'good afternoon', or a 'good evening' depending on the time of day
 
-def get_prompt_template(system_prompt=system_prompt, promptTemplate_type=None, history=False):
+def get_prompt_template(system_prompt=system_prompt, promptTemplate_type=None, history=[]):
+ 
     if promptTemplate_type == "llama":
         B_INST, E_INST = "[INST]", "[/INST]"
         B_SYS, E_SYS = "<<SYS>>\n", "\n<</SYS>>\n\n"
         SYSTEM_PROMPT = B_SYS + system_prompt + E_SYS
         if history:
             prompt_template = """
-            ### Instruction: You're a AI Clinic support agent that is talking to a patients. You can ask user details for appointment like name, phone and address and complete the appointment for user
+                 ### Instruction: You're a AI Clinic support agent that is talking to a patients. You can ask user details for appointment like name, phone and address and complete the appointment for user
                  Here you can describe personality traits and job duties in plain language.
-                               
-                Use only the chat history and the following information
-                {context}
+                              
+                Use only the chat history \n
+                Chat History:\n\n{history} \n
+                and the following information 
+                \n\n {context}
                 to answer in a helpful manner to the question. If you don't know the answer -
                 say that you don't know. Keep your replies short, compassionate and informative.
-                {history}
+                
                 ### Input: {question}
                 ### Response:
                 """.strip()
@@ -52,9 +55,12 @@ def get_prompt_template(system_prompt=system_prompt, promptTemplate_type=None, h
                         # instruction = """
             # Context: {history} \n {context}
             # User: {question}"""
-
+            chat_history_str = "\n".join([f"{message['role']}: {message['content']}" for message in history])
+            final_template=prompt_template.replace("{history}",chat_history_str)
             # prompt_template = B_INST + SYSTEM_PROMPT + instruction + E_INST
-            prompt = PromptTemplate(input_variables=["context", "question", "history"], template=prompt_template)
+            prompt = PromptTemplate(input_variables=["context", "question"], template=final_template)
+            # prompt = PromptTemplate(input_variables=["context", "question", "history"], template=prompt_template)
+        
         else:
             instruction = """
             Context: {context}
