@@ -15,6 +15,14 @@ def appointment_inquiry():
     return (
         "tell me about doctor schedule"
     )
+    
+def end_conversation():
+    return (
+        "Thank you for calling us."
+    )
+def appointment_form():
+    qs=["Can you please tell me your full name?","Can I have you contact number?", "Lastly, Where are you calling from?"]
+    return (qs)
 
 
 def chitchat():

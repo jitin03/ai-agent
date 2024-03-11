@@ -8,7 +8,8 @@ from langchain.document_loaders import CSVLoader, PDFMinerLoader, TextLoader, Un
 from langchain.document_loaders import UnstructuredFileLoader, UnstructuredMarkdownLoader
 from langchain.document_loaders import UnstructuredHTMLLoader
 
-
+from kor.nodes import Object, Text, Number
+from kor import extract_from_documents, from_pydantic, create_extraction_chain
 # load_dotenv()
 ROOT_DIRECTORY = os.path.dirname(os.path.realpath(__file__))
 
@@ -188,3 +189,36 @@ MODEL_BASENAME = "llama-2-7b-chat.Q4_K_M.gguf"
 ####
 # MODEL_ID = "TheBloke/Llama-2-7B-Chat-AWQ"
 # MODEL_BASENAME = "model.safetensors.awq"
+PERSONAL_INFO_SCHEMA = Object(
+    id="personal_info",
+    description="Personal information about a given person.",
+    attributes=[
+        Text(
+            id="name",
+            description="The  name of the person",
+            examples=[("My name is Jitin Doriya", "Jitin Doriya"),("Myself is Jitin Doriya", "Jitin Doriya"),("I am Jitin Doriya", "Jitin Doriya")],
+        ),
+        Text(
+            id="contact_no",
+            description="The contact number of the person",
+            examples=[("My phone number is 9780032269", "9780032269")],
+        ),
+        Text(
+            id="location",
+            description="The location of the person.",
+            examples=[("I am from Jagatpura", "Jagatpura"), ("calling from Indira Gandhi nagar", "Indira Gandhi nagar")],
+        ),
+    ],
+    examples=[
+        (
+            "I am jitin doriya calling from jagatpura  and phone no is 9780032269",
+            [
+                {"name": "John", "contact_no": "9780032269", "location": "jagatpura"},
+                
+            ],
+        )
+    ],
+    many=True,
+)
+
+

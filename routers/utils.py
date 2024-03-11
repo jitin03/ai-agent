@@ -7,9 +7,9 @@ from langchain.embeddings import HuggingFaceBgeEmbeddings
 from langchain.embeddings import HuggingFaceEmbeddings
 EMBEDDING_MODEL_NAME = "hkunlp/instructor-large"
 
-def log_to_csv(question, answer):
+def log_to_csv(question, answer,conversation_id):
 
-    log_dir, log_file = "local_chat_history", "qa_log.csv"
+    log_dir, log_file = "local_chat_history", conversation_id+"_qa_log.csv"
     # Ensure log directory exists, create if not
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)

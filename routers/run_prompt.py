@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Path
 import logging
 import asyncio
+import pandas as pd
 import os
 import json
 import redis
@@ -12,7 +13,7 @@ from pydantic import BaseModel
 import torch
 from semantic_router.encoders import HuggingFaceEncoder
 from .semantic_routers import routes
-from .semanic_router_response import appointment_inquiry,politics,chitchat,greetings,done_task
+from .semanic_router_response import appointment_inquiry,politics,chitchat,greetings,done_task,appointment_form,end_conversation
 from .utils import log_to_csv
 from .utils import get_embeddings
 from langchain.chains import RetrievalQA
@@ -33,7 +34,7 @@ from typing import List
 from .constants import (
     # CHROMA_SETTINGS,
     EMBEDDING_MODEL_NAME, PERSIST_DIRECTORY, MODEL_ID, MODEL_BASENAME,
-    MAX_NEW_TOKENS)
+    MAX_NEW_TOKENS,PERSONAL_INFO_SCHEMA)
 from fastapi.responses import StreamingResponse
 # API queue addition
 from threading import Lock
@@ -46,6 +47,7 @@ encoder = HuggingFaceEncoder()
 from .rag_redis.config import (
     INDEX_NAME, INDEX_SCHEMA, REDIS_URL
 )
+from kor import extract_from_documents, from_pydantic, create_extraction_chain
 from transformers import (
     GenerationConfig,
     pipeline,
@@ -120,9 +122,13 @@ router = APIRouter(
 
 res = None
 answer = None
+index =0
 # conversation_id="123"
 conversation_history=[]
+conversation_index = {}
+appointment_form_index=0
 INTIAL_CONVERSTATION = {"conversation": {"role": "system", "content": "You are a helpful assistant."}}
+
 class Message(BaseModel):
     role: str
     content: str
@@ -375,11 +381,28 @@ async def run_ingest_route():
         # return f"Error occurred: {str(e)}", 500
         raise HTTPException(status_code=500, detail='Something went wrong!.')
 
+@router.get("/get_personal_info/{conversation_id}",status_code=status.HTTP_200_OK)
+async def get_personal_info(conversation_id: str):
+    device_type ="mps"
+    show_sources= False
+    use_history= True
+    model_type="llama"
+    reviews=pd.read_csv('./local_chat_history/qwerty_qa_log.csv')
+    reviews["question"]=reviews["question"].drop_duplicates()
+    reviews["question"].dropna()
+    concatenated_string = ' '.join(reviews['question'].dropna())
+    qa,llm = retrieval_qa_pipline(device_type, use_history=conversation_history, promptTemplate_type=model_type)
+    chain = create_extraction_chain(llm, PERSONAL_INFO_SCHEMA,input_formatter="text_prefix")
+    response = chain.run(concatenated_string)["data"]
+    return {"prompts":response}
+    
 
 @router.post("/prompt_agent/{conversation_id}", status_code=status.HTTP_200_OK)
 async def prompt_agent(conversation_id:str,request: Prompt):
     global conversation_history
+    global conversation_index
     global answer
+    global appointment_form_index
     device_type ="mps"
     show_sources= False
     use_history= True
@@ -399,9 +422,8 @@ async def prompt_agent(conversation_id:str,request: Prompt):
         print(existing_conversation)
         print("inside redis")
     
-    
     if user_prompt:
-        conversation_history.append(INTIAL_CONVERSTATION["conversation"])
+        
         conversation_history.append({'role':'Human','content':user_prompt})
         qa,llm = retrieval_qa_pipline(device_type, use_history=conversation_history, promptTemplate_type=model_type)
     
@@ -453,6 +475,56 @@ async def prompt_agent(conversation_id:str,request: Prompt):
         elif route.name == "greetings":
             print("inside greetings now")
             answer = greetings()
+        elif route.name=="end_conversation":
+            answer = end_conversation()
+        elif route.name =="appointment_form":
+            
+            qs = appointment_form()
+            # Extracting the content of the last element in the history
+            
+
+            # Check if the last content contains the questions sequentially
+            if existing_conversation_json:
+                print("heroes")
+                print(existing_conversation["conversation_history"][-2]['content'])
+                print(existing_conversation["conversation_history"][-1]['content'])
+                print("heroes")
+                # last_content = existing_conversation["conversation_history"][-1]['content']
+                last_content = [msg['content'] for msg in reversed(existing_conversation["conversation_history"]) if msg['role'] == "AI"][0]
+                if existing_conversation["appointment_form_index"]==2:
+                    answer = done_task()
+                else:
+                    # Find the index of the last question found in last_content
+                    last_index = -1
+                    for i, question in enumerate(qs):
+                        if question in last_content:
+                            last_index = i
+
+                    # Print the next question if found
+                    print(last_index + 1)
+                    print(last_index)
+                    if last_index + 1 < len(qs):
+                        print("qs[last_index + 1]")
+                        print(qs[last_index + 1])
+                        answer=qs[last_index + 1]
+                        existing_conversation["appointment_form_index"] +=1
+                    elif last_index+1 == len(qs):
+                        answer = done_task()
+                    
+            else:   
+                    last_content = conversation_history[-1]['content']
+                    index = 0
+                    for question in qs:
+                        if question in last_content:
+                            index += 1
+                            appointment_form_index=index
+                        else:
+                            break
+
+                    # If the last content does not contain the questions sequentially, print the corresponding question
+                    if index < len(qs):
+                        print(qs[index])
+                        answer = qs[index]
         elif route.name == "done_task":
             answer = done_task()
 
@@ -466,15 +538,17 @@ async def prompt_agent(conversation_id:str,request: Prompt):
         print(answer)
         print("\n> history:")
         conversation_history.append({'role':'AI','content':answer})
+        conversation_index["conversation_history"]=conversation_history
+        conversation_index["appointment_form_index"]=appointment_form_index
         print(json.dumps(conversation_history))
-        r.set(conversation_id, json.dumps(conversation_history))
-        print(conversation_history)
+        r.set(conversation_id, json.dumps(conversation_index))
+        print(json.dumps(conversation_index))
         prompt_response_dict = {
                 "Prompt": user_prompt,
                 "Answer": answer,
                 
             }
-        # log_to_csv(user_prompt,answer)
+        log_to_csv(user_prompt,answer,conversation_id)
         return prompt_response_dict, 200
     else:
         raise HTTPException(status_code=404, detail='No user prompt received')

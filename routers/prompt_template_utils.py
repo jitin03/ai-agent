@@ -18,7 +18,9 @@ system_prompt = """
      ## Greeting Rules
                                     #  Greet the user and thank them for calling Clinic
                                     #  Prefix the greeting with a 'good morning', 'good afternoon', or a 'good evening' depending on the time of day
-
+# You can ask user details for appointment like name, phone and address and complete the appointment for user
+                #  you should only ask one question at a time even if you don't get all the info don't ask as a list.Keep your replies short, compassionate and informative.
+                              
 def get_prompt_template(system_prompt=system_prompt, promptTemplate_type=None, history=[]):
  
     if promptTemplate_type == "llama":
@@ -27,15 +29,15 @@ def get_prompt_template(system_prompt=system_prompt, promptTemplate_type=None, h
         SYSTEM_PROMPT = B_SYS + system_prompt + E_SYS
         if history:
             prompt_template = """
-                 ### Instruction: You're a AI Clinic support agent that is talking to a patients. You can ask user details for appointment like name, phone and address and complete the appointment for user
-                 Here you can describe personality traits and job duties in plain language.
-                              
-                Use only the chat history \n
+                 ### Instruction: You're a AI Clinic support agent that is talking to a patients. Keep your replies very short.
+                 Greet the user and thank them for calling Clinic
+                 Prefix the greeting with a 'good morning', 'good afternoon', or a 'good evening' depending on the time of day
+                Use the chat history \n
                 Chat History:\n\n{history} \n
                 and the following information 
                 \n\n {context}
                 to answer in a helpful manner to the question. If you don't know the answer -
-                say that you don't know. Keep your replies short, compassionate and informative.
+                say that you don't know. 
                 
                 ### Input: {question}
                 ### Response:

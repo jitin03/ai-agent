@@ -18,6 +18,8 @@ politics = Route(
         "don't you just love the president" "don't you just hate the president",
         "they're going to destroy this country!",
         "they will save the country!",
+        "Who is the PM of India",
+        "Policits in India"
     ],
 )
 chitchat = Route(
@@ -47,8 +49,18 @@ greetings = Route(
 done_task = Route(
     name="done_task",
     utterances=[
+
     "My name is pooja and contact number is 9780032269 from jagatpurate",
     "Myself Pooja and contact number is 1234567890 from jaipur"
+    
+    ],
+)
+
+end_conversation = Route(
+    name="end_conversation",
+    utterances=[
+    "Thank you bye",
+    "Thank you so much"
     
     ],
 )
@@ -57,7 +69,8 @@ done_task = Route(
 appointment_route = Route(
     name="appointment_inquiry",
     utterances=[
-     "Can I schedule an appointment with doctor?",
+    "Thanks for booking my appointment",
+     "Can you schedule an appointment with doctor?",
     "I'd like to book a consultation with a doctor.",
     "How can I make an appointment for a medical check-up?",
     "I need to see a doctor. What are my options?",
@@ -66,12 +79,29 @@ appointment_route = Route(
     "Do you have any available slots for a doctor's visit this week?",
     "I'd like to set up a follow-up appointment with my specialist.",
     "Can I book a same-day appointment?"
-   
+    ],
+)
+
+appointment_form = Route(
+    name="appointment_form",
+    utterances=[
+     "Yes please book an appointment",
+     "goahead for appointment",
+     "Please proceed with appointment",
+     "Yes book an appointment with doctor",
+     "Rakesh kumar Doriya"
+     "Jitin Doriya",
+     "Jitin",
+     "9780032269",
+     "1234567890",
+     "Jaipur",
+     "Malviya Nagar",
+     "malviya nagar",
     ],
 )
 
 
 
-routes = [politics,chitchat,appointment_route,greetings,done_task]
+routes = [politics,chitchat,appointment_route,greetings,done_task,appointment_form,end_conversation]
 
 
