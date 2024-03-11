@@ -29,9 +29,8 @@ def get_prompt_template(system_prompt=system_prompt, promptTemplate_type=None, h
         SYSTEM_PROMPT = B_SYS + system_prompt + E_SYS
         if history:
             prompt_template = """
-                 ### Instruction: You're a AI Clinic support agent that is talking to a patients. Keep your replies very short.
-                 Greet the user and thank them for calling Clinic
-                 Prefix the greeting with a 'good morning', 'good afternoon', or a 'good evening' depending on the time of day
+                ### Instruction: You're a AI Clinic support agent that is talking to a patients. You can manage the patients call and keep your replies short only.
+                Here you can describe personality traits and job duties in plain language.
                 Use the chat history \n
                 Chat History:\n\n{history} \n
                 and the following information 

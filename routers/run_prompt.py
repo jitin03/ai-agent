@@ -87,34 +87,6 @@ logging.info(f"Display Source Documents set to: {SHOW_SOURCES}")
 
 EMBEDDINGS = HuggingFaceInstructEmbeddings(model_name=EMBEDDING_MODEL_NAME, model_kwargs={"device": DEVICE_TYPE})
 
-# uncomment the following line if you used HuggingFaceEmbeddings in the ingest.py
-# EMBEDDINGS = HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL_NAME)
-# if os.path.exists(PERSIST_DIRECTORY):
-#     try:
-#         shutil.rmtree(PERSIST_DIRECTORY)
-#     except OSError as e:
-#         print(f"Error: {e.filename} - {e.strerror}.")
-# else:
-#     print("The directory does not exist")
-
-# run_langest_commands = ["python", "ingest.py"]
-# if DEVICE_TYPE == "cpu":
-#     run_langest_commands.append("--device_type")
-#     run_langest_commands.append(DEVICE_TYPE)
-
-# result = subprocess.run(run_langest_commands, capture_output=True)
-# if result.returncode != 0:
-#     raise FileNotFoundError(
-#         "No files were found inside SOURCE_DOCUMENTS, please put a starter file inside before starting the API!"
-#     )
-
-# load the vectorstore
-# DB = Chroma(
-#     persist_directory=PERSIST_DIRECTORY,
-#     embedding_function=EMBEDDINGS,
-#     client_settings=CHROMA_SETTINGS,
-# )
-
 router = APIRouter(
     prefix='/api/run-agent',
     tags=['agent']
@@ -294,7 +266,9 @@ def retrieval_qa_pipline(device_type, use_history, promptTemplate_type="llama"):
 
     # get the prompt template and memory if set by the user.
     prompt, memory = get_prompt_template(promptTemplate_type=promptTemplate_type, history=use_history)
-    
+    print("prompt")
+    print(prompt)
+    logging.info(prompt)
     # load the llm pipeline
     # llm = load_model(device_type, model_id=MODEL_ID, model_basename=MODEL_BASENAME, LOGGING=logging)
     llm = ChatGroq(temperature=0, groq_api_key="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", model_name="llama2-70b-4096")
@@ -336,51 +310,6 @@ def retrieval_qa_pipline(device_type, use_history, promptTemplate_type="llama"):
 
 
 
-@router.get("/run_ingest", status_code=status.HTTP_200_OK)
-async def run_ingest_route():
-    global RETRIEVER
-    global DB
-    global QA
-    try:
-        if os.path.exists(PERSIST_DIRECTORY):
-            try:
-                shutil.rmtree(PERSIST_DIRECTORY)
-            except OSError as e:
-                print(f"Error: {e.filename} - {e.strerror}.")
-        else:
-            print("The directory does not exist")
-
-        run_langest_commands = ["python", "routers/ingest.py"]
-        if DEVICE_TYPE == "cpu":
-            run_langest_commands.append("--device_type")
-            run_langest_commands.append(DEVICE_TYPE)
-
-        result = subprocess.run(run_langest_commands, capture_output=True)
-        if result.returncode != 0:
-            return "Script execution failed: {}".format(result.stderr.decode("utf-8")), 500
-        # load the vectorstore
-        # DB = Chroma(
-        #     persist_directory=PERSIST_DIRECTORY,
-        #     embedding_function=EMBEDDINGS,
-        #     client_settings=CHROMA_SETTINGS,
-        # )
-        # RETRIEVER = DB.as_retriever()
-        # prompt, memory = get_prompt_template(promptTemplate_type="llama", history=False)
-
-        # QA = RetrievalQA.from_chain_type(
-        #     llm=LLM,
-        #     chain_type="stuff",
-        #     retriever=RETRIEVER,
-        #     return_source_documents=SHOW_SOURCES,
-        #     chain_type_kwargs={
-        #         "prompt": prompt,
-        #     },
-        # )
-        return "Script executed successfully: {}".format(result.stdout.decode("utf-8")), 200
-    except Exception as e:
-        # return f"Error occurred: {str(e)}", 500
-        raise HTTPException(status_code=500, detail='Something went wrong!.')
-
 @router.get("/get_personal_info/{conversation_id}",status_code=status.HTTP_200_OK)
 async def get_personal_info(conversation_id: str):
     device_type ="mps"
@@ -413,19 +342,23 @@ async def prompt_agent(conversation_id:str,request: Prompt):
     logging.info(f"Use history set to: {use_history}")
    
     user_prompt = request.prompt
-    
-    
-    existing_conversation_json = r.get(conversation_id)
-    if existing_conversation_json:
-        existing_conversation = json.loads(existing_conversation_json)
-        print("inside redis")
-        print(existing_conversation)
-        print("inside redis")
-    
     if user_prompt:
-        
+    
+        existing_conversation_json = r.get(conversation_id)
+        if existing_conversation_json:
+            existing_conversation = json.loads(existing_conversation_json)
+            print("inside redis")
+            print(existing_conversation)
+            print("inside redis")
+        else:
+            print("no index for history")
+            existing_conversation={}
+            existing_conversation.setdefault("conversation_history", [])
+    
+    
+        existing_conversation["conversation_history"].append({"role": "system", "content": "You are a helpful assistant."})
         conversation_history.append({'role':'Human','content':user_prompt})
-        qa,llm = retrieval_qa_pipline(device_type, use_history=conversation_history, promptTemplate_type=model_type)
+        qa,llm = retrieval_qa_pipline(device_type, use_history=existing_conversation["conversation_history"], promptTemplate_type=model_type)
     
         rl = RouteLayer(encoder=encoder, routes=routes, llm=llm)
         llmcache = SemanticCache(
@@ -520,17 +453,12 @@ async def prompt_agent(conversation_id:str,request: Prompt):
                             appointment_form_index=index
                         else:
                             break
-
                     # If the last content does not contain the questions sequentially, print the corresponding question
                     if index < len(qs):
                         print(qs[index])
                         answer = qs[index]
         elif route.name == "done_task":
             answer = done_task()
-
-# quickly check the cache with a slightly different prompt (before invoiking an LLM)
-
-
         # Print the result
         print("\n\n> Question:")
         print(user_prompt)

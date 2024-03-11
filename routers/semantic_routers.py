@@ -85,6 +85,7 @@ appointment_route = Route(
 appointment_form = Route(
     name="appointment_form",
     utterances=[
+    "Yes, I would like to book an appointment for Monday 8 p.m.",
      "Yes please book an appointment",
      "goahead for appointment",
      "Please proceed with appointment",
