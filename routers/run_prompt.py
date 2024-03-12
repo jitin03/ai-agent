@@ -308,6 +308,50 @@ def retrieval_qa_pipline(device_type, use_history, promptTemplate_type="llama"):
 
     return qa,llm
 
+@router.get("/run_ingest", status_code=status.HTTP_200_OK)
+async def run_ingest_route():
+    global RETRIEVER
+    global DB
+    global QA
+    try:
+        if os.path.exists(PERSIST_DIRECTORY):
+            try:
+                shutil.rmtree(PERSIST_DIRECTORY)
+            except OSError as e:
+                print(f"Error: {e.filename} - {e.strerror}.")
+        else:
+            print("The directory does not exist")
+
+        run_langest_commands = ["python", "routers/ingest.py"]
+        if DEVICE_TYPE == "cpu":
+            run_langest_commands.append("--device_type")
+            run_langest_commands.append(DEVICE_TYPE)
+
+        result = subprocess.run(run_langest_commands, capture_output=True)
+        if result.returncode != 0:
+            return "Script execution failed: {}".format(result.stderr.decode("utf-8")), 500
+        # load the vectorstore
+        # DB = Chroma(
+        #     persist_directory=PERSIST_DIRECTORY,
+        #     embedding_function=EMBEDDINGS,
+        #     client_settings=CHROMA_SETTINGS,
+        # )
+        # RETRIEVER = DB.as_retriever()
+        # prompt, memory = get_prompt_template(promptTemplate_type="llama", history=False)
+
+        # QA = RetrievalQA.from_chain_type(
+        #     llm=LLM,
+        #     chain_type="stuff",
+        #     retriever=RETRIEVER,
+        #     return_source_documents=SHOW_SOURCES,
+        #     chain_type_kwargs={
+        #         "prompt": prompt,
+        #     },
+        # )
+        return "Script executed successfully: {}".format(result.stdout.decode("utf-8")), 200
+    except Exception as e:
+        # return f"Error occurred: {str(e)}", 500
+        raise HTTPException(status_code=500, detail='Something went wrong!.')
 
 
 @router.get("/get_personal_info/{conversation_id}",status_code=status.HTTP_200_OK)
