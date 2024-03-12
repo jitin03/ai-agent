@@ -510,14 +510,16 @@ async def prompt_agent(conversation_id:str,request: Prompt):
         print(answer)
         print("\n> history:")
         conversation_history.append({'role':'AI','content':answer})
-        conversation_index["conversation_history"]=conversation_history
-        conversation_index["appointment_form_index"]=appointment_form_index
+        # conversation_index["conversation_history"]=conversation_history
+        # conversation_index["appointment_form_index"]=appointment_form_index
+        existing_conversation["conversation_history"]=conversation_history
         print(json.dumps(conversation_history))
-        r.set(conversation_id, json.dumps(conversation_index))
+        r.set(conversation_id, json.dumps(existing_conversation))
         print(json.dumps(conversation_index))
         prompt_response_dict = {
                 "Prompt": user_prompt,
                 "Answer": answer,
+                "history":existing_conversation
                 
             }
         log_to_csv(user_prompt,answer,conversation_id)
