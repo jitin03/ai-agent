@@ -82,28 +82,28 @@ appointment_route = Route(
     ],
 )
 
-appointment_form = Route(
-    name="appointment_form",
-    utterances=[
-    "Hello doc Can I get your appointment today",
-    "Yes, I would like to book an appointment for Monday 8 p.m.",
-     "Yes please book an appointment",
-     "goahead for appointment",
-     "Please proceed with appointment",
-     "Yes book an appointment with doctor",
-     "Rakesh kumar Doriya"
-     "Om Tarkunde",
-     "Jitin",
-     "9780032269",
-     "1234567890",
-     "Jaipur",
-     "Malviya Nagar",
-     "malviya nagar",
-    ],
-)
+# appointment_form = Route(
+#     name="appointment_form",
+#     utterances=[
+#     "Hello doc Can I get your appointment today",
+#     "Yes, I would like to book an appointment for Monday 8 p.m.",
+#      "Yes please book an appointment",
+#      "goahead for appointment",
+#      "Please proceed with appointment",
+#      "Yes book an appointment with doctor",
+#      "Rakesh kumar Doriya"
+#      "Om Tarkunde",
+#      "Jitin",
+#      "9780032269",
+#      "1234567890",
+#      "Jaipur",
+#      "Malviya Nagar",
+#      "malviya nagar",
+#     ],
+# )
 
 
 
-routes = [politics,chitchat,appointment_route,greetings,done_task,appointment_form,end_conversation]
+routes = [politics,chitchat,appointment_route,greetings,done_task,end_conversation]
 
 

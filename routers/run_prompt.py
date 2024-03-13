@@ -13,7 +13,7 @@ from pydantic import BaseModel
 import torch
 from semantic_router.encoders import HuggingFaceEncoder
 from .semantic_routers import routes
-from .semanic_router_response import appointment_inquiry,politics,chitchat,greetings,done_task,appointment_form,end_conversation
+from .semanic_router_response import appointment_inquiry,politics,chitchat,greetings,done_task,end_conversation
 from .utils import log_to_csv
 from .utils import get_embeddings
 from langchain.chains import RetrievalQA
@@ -454,53 +454,53 @@ async def prompt_agent(conversation_id:str,request: Prompt):
             answer = greetings()
         elif route.name=="end_conversation":
             answer = end_conversation()
-        elif route.name =="appointment_form":
+        # elif route.name =="appointment_form":
             
-            qs = appointment_form()
-            # Extracting the content of the last element in the history
+        #     # qs = appointment_form()
+        #     # Extracting the content of the last element in the history
             
 
-            # Check if the last content contains the questions sequentially
-            if existing_conversation_json:
-                print("heroes")
-                print(existing_conversation["conversation_history"][-2]['content'])
-                print(existing_conversation["conversation_history"][-1]['content'])
-                print("heroes")
-                # last_content = existing_conversation["conversation_history"][-1]['content']
-                last_content = [msg['content'] for msg in reversed(existing_conversation["conversation_history"]) if msg['role'] == "AI"][0]
-                if existing_conversation["appointment_form_index"]==2:
-                    answer = done_task()
-                else:
-                    # Find the index of the last question found in last_content
-                    last_index = -1
-                    for i, question in enumerate(qs):
-                        if question in last_content:
-                            last_index = i
+        #     # Check if the last content contains the questions sequentially
+        #     if existing_conversation_json:
+        #         print("heroes")
+        #         print(existing_conversation["conversation_history"][-2]['content'])
+        #         print(existing_conversation["conversation_history"][-1]['content'])
+        #         print("heroes")
+        #         # last_content = existing_conversation["conversation_history"][-1]['content']
+        #         last_content = [msg['content'] for msg in reversed(existing_conversation["conversation_history"]) if msg['role'] == "AI"][0]
+        #         if existing_conversation["appointment_form_index"]==2:
+        #             answer = done_task()
+        #         else:
+        #             # Find the index of the last question found in last_content
+        #             last_index = -1
+        #             for i, question in enumerate(qs):
+        #                 if question in last_content:
+        #                     last_index = i
 
-                    # Print the next question if found
-                    print(last_index + 1)
-                    print(last_index)
-                    if last_index + 1 < len(qs):
-                        print("qs[last_index + 1]")
-                        print(qs[last_index + 1])
-                        answer=qs[last_index + 1]
-                        existing_conversation["appointment_form_index"] +=1
-                    elif last_index+1 == len(qs):
-                        answer = done_task()
+        #             # Print the next question if found
+        #             print(last_index + 1)
+        #             print(last_index)
+        #             if last_index + 1 < len(qs):
+        #                 print("qs[last_index + 1]")
+        #                 print(qs[last_index + 1])
+        #                 answer=qs[last_index + 1]
+        #                 existing_conversation["appointment_form_index"] +=1
+        #             elif last_index+1 == len(qs):
+        #                 answer = done_task()
                     
-            else:   
-                    last_content = conversation_history[-1]['content']
-                    index = 0
-                    for question in qs:
-                        if question in last_content:
-                            index += 1
-                            appointment_form_index=index
-                        else:
-                            break
-                    # If the last content does not contain the questions sequentially, print the corresponding question
-                    if index < len(qs):
-                        print(qs[index])
-                        answer = qs[index]
+        #     else:   
+        #             last_content = conversation_history[-1]['content']
+        #             index = 0
+        #             for question in qs:
+        #                 if question in last_content:
+        #                     index += 1
+        #                     appointment_form_index=index
+        #                 else:
+        #                     break
+        #             # If the last content does not contain the questions sequentially, print the corresponding question
+        #             if index < len(qs):
+        #                 print(qs[index])
+        #                 answer = qs[index]
         elif route.name == "done_task":
             answer = done_task()
         # Print the result
