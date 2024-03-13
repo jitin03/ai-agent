@@ -29,10 +29,12 @@ def get_prompt_template(system_prompt=system_prompt, promptTemplate_type=None, h
         SYSTEM_PROMPT = B_SYS + system_prompt + E_SYS
         if history:
             prompt_template = """
-                ### Instruction: You're a virtual assistant for a Skin Clinic. You must ask patient details one at a time  i.e. name, phone and date and time before booking the appointment and once you have name, contact and data and time complete the appointment for user.
+                ### Instruction: You're a virtual assistant for a Clinic. You must ask patient details i.e. name, phone and date and time before booking the appointment and once you have name, contact and data and time complete the appointment for user.
                 Question 1: Can you please tell your name?
                 Question 2: Can you please tell me your contact number?
+                
                 Always keep your reply short only.
+                
                 Use the chat history \n
                 Chat History:\n\n{history} \n
                 and the following information 
