@@ -9,18 +9,18 @@ from langchain.prompts import PromptTemplate
 
 # this is specific to Llama-2.
 
-system_prompt = """
-            ### Your name is AI Agent. You are a virtual assistant for a Clinic.
-            Here you can describe personality traits and job duties in plain language. You must ask user details for appointment like name, phone and address and complete the appointment for user
-            ## Greeting Rules
-            Greet the user and thank them for calling Clinic
-            Prefix the greeting with a 'good morning', 'good afternoon', or a 'good evening' depending on the time of day."""
-     ## Greeting Rules
-                                    #  Greet the user and thank them for calling Clinic
-                                    #  Prefix the greeting with a 'good morning', 'good afternoon', or a 'good evening' depending on the time of day
-# You can ask user details for appointment like name, phone and address and complete the appointment for user
-                #  you should only ask one question at a time even if you don't get all the info don't ask as a list.Keep your replies short, compassionate and informative.
-                              
+# system_prompt = """You are a AI assistant at a Clinic, you will use the provided context to answer user questions.
+# Read the given context before answering questions and think step by step. If you can not answer a user question based on 
+# the provided context, inform the user. Do not use any other information for answering user."""   
+system_prompt="""I want you to act as a Assistant at clinic appointment scheduler. 
+Assist a patient in booking an appointment for a doctor by asking mandaroty details their name, contact information, and preferred appointment day and time before booking the appointment and once you have name, contact and data and time complete the appointment for user.
+Ask each question sequentially and keep your responses concise. For Example :
+Question 1: Can you please tell your name?
+Question 2: Can you please tell me your contact number?.
+Question 2: Can you tell me preferred appointment day and time ?.
+Read the given context before answering questions and think step by step. If you can not answer a user question based on 
+the provided context, inform the user. Do not use any other information for answering user."""
+
 def get_prompt_template(system_prompt=system_prompt, promptTemplate_type=None, history=[]):
  
     if promptTemplate_type == "llama":
@@ -28,44 +28,50 @@ def get_prompt_template(system_prompt=system_prompt, promptTemplate_type=None, h
         B_SYS, E_SYS = "<<SYS>>\n", "\n<</SYS>>\n\n"
         SYSTEM_PROMPT = B_SYS + system_prompt + E_SYS
         if history:
-            prompt_template = """
-                ### Instruction: You're a virtual assistant for a Clinic. You must ask patient details i.e. name, phone and date and time before booking the appointment and once you have name, contact and data and time complete the appointment for user.
-                Question 1: Can you please tell your name?
-                Question 2: Can you please tell me your contact number?
+            # prompt_template = """
+            #     ### Instruction: You're a virtual assistant for a Clinic. You must ask patient details i.e. name, phone and date and time before booking the appointment and once you have name, contact and data and time complete the appointment for user.
+            #     Question 1: Can you please tell your name?
+            #     Question 2: Can you please tell me your contact number?
                 
-                Always keep your reply short only.
+            #     Always keep your reply short only.
                 
-                Use the chat history \n
-                Chat History:\n\n{history} \n
-                and the following information 
-                \n\n {context}
-                to answer in a helpful manner to the question. If you don't know the answer -
-                say that you don't know. 
+            #     Use the chat history \n
+            #     Chat History:\n\n{history} \n
+            #     and the following information 
+            #     \n\n {context}
+            #     to answer in a helpful manner to the question. If you don't know the answer -
+            #     say that you don't know. 
                 
-                ### Input: {question}
-                ### Response:
-                """.strip()
-            # """
-                        # prompt_template = '''
-                        # Your name is AI Agent. You are a virtual assistant for a Clinic.
-                        #             Here you can describe personality traits and job duties in plain language.
-                        #             ## Greeting Rules
-                        #             Greet the user and thank them for calling Clinic
-                        #             Prefix the greeting with a 'good morning', 'good afternoon', or a 'good evening' depending on the time of day.
-                        # ----------------
-                        # {history} \n {context}
-                        #
-                        # Question: {question}
-                        # Helpful Answer:'''
-                        # instruction = """
-            # Context: {history} \n {context}
-            # User: {question}"""
+            #     ### Input: {question}
+            #     ### Response:
+            #     """.strip()
+            # # """
+            #             # prompt_template = '''
+            #             # Your name is AI Agent. You are a virtual assistant for a Clinic.
+            #             #             Here you can describe personality traits and job duties in plain language.
+            #             #             ## Greeting Rules
+            #             #             Greet the user and thank them for calling Clinic
+            #             #             Prefix the greeting with a 'good morning', 'good afternoon', or a 'good evening' depending on the time of day.
+            #             # ----------------
+            #             # {history} \n {context}
+            #             #
+            #             # Question: {question}
+            #             # Helpful Answer:'''
+            #             # instruction = """
+            # # Context: {history} \n {context}
+            # # User: {question}"""
+            # chat_history_str = "\n".join([f"{message['role']}: {message['content']}" for message in history])
+            # final_template=prompt_template.replace("{history}",chat_history_str)
+            # prompt_template = B_INST + final_template + E_INST
+            # prompt = PromptTemplate(input_variables=["context", "question"], template=prompt_template)
+            # # prompt = PromptTemplate(input_variables=["context", "question", "history"], template=prompt_template)
             chat_history_str = "\n".join([f"{message['role']}: {message['content']}" for message in history])
-            final_template=prompt_template.replace("{history}",chat_history_str)
-            # prompt_template = B_INST + SYSTEM_PROMPT + instruction + E_INST
-            prompt = PromptTemplate(input_variables=["context", "question"], template=final_template)
-            # prompt = PromptTemplate(input_variables=["context", "question", "history"], template=prompt_template)
-        
+            instruction = """
+            Context: {history} \n {context}
+            User: {question}"""
+            final_template = instruction.replace("{history}",chat_history_str)
+            prompt_template = B_INST + SYSTEM_PROMPT + final_template + E_INST
+            prompt = PromptTemplate(input_variables=["history", "context", "question"], template=prompt_template)
         else:
             instruction = """
             Context: {context}
@@ -108,6 +114,9 @@ def get_prompt_template(system_prompt=system_prompt, promptTemplate_type=None, h
             User: {question}
             Answer:"""
             )
+            chat_history_str = "\n".join([f"{message['role']}: {message['content']}" for message in history])
+          
+            prompt_template = prompt_template.replace("{history}",chat_history_str)
             prompt = PromptTemplate(input_variables=["history", "context", "question"], template=prompt_template)
         else:
             prompt_template = (
