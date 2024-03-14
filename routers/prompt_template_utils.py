@@ -17,7 +17,7 @@ Assist a patient in booking an appointment for a doctor by asking mandaroty deta
 Ask each question sequentially and keep your responses concise. For Example :
 Question 1: Can you please tell your name?
 Question 2: Can you please tell me your contact number?.
-Question 2: Can you tell me preferred appointment day and time ?.
+Question 2: Can you please tell me your preffered day and time for appointment?.
 Read the given context before answering questions and think step by step. If you can not answer a user question based on 
 the provided context, inform the user. Do not use any other information for answering user."""
 
@@ -114,9 +114,6 @@ def get_prompt_template(system_prompt=system_prompt, promptTemplate_type=None, h
             User: {question}
             Answer:"""
             )
-            chat_history_str = "\n".join([f"{message['role']}: {message['content']}" for message in history])
-          
-            prompt_template = prompt_template.replace("{history}",chat_history_str)
             prompt = PromptTemplate(input_variables=["history", "context", "question"], template=prompt_template)
         else:
             prompt_template = (
