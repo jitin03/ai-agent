@@ -8,8 +8,11 @@ import redis
 import shutil
 import subprocess
 import argparse
+from dotenv import load_dotenv
 from langchain_groq import ChatGroq
+from langchain_community.llms import HuggingFaceEndpoint
 from pydantic import BaseModel
+from kor import from_pydantic
 import torch
 from semantic_router.encoders import HuggingFaceEncoder
 from .semantic_routers import routes
@@ -34,7 +37,7 @@ from typing import List
 from .constants import (
     # CHROMA_SETTINGS,
     EMBEDDING_MODEL_NAME, PERSIST_DIRECTORY, MODEL_ID, MODEL_BASENAME,
-    MAX_NEW_TOKENS,PERSONAL_INFO_SCHEMA)
+    MAX_NEW_TOKENS,PERSONAL_INFO_SCHEMA,extraction)
 from fastapi.responses import StreamingResponse
 # API queue addition
 from threading import Lock
@@ -360,14 +363,38 @@ async def get_personal_info(conversation_id: str):
     show_sources= False
     use_history= True
     model_type="llama"
-    reviews=pd.read_csv('./local_chat_history/qwerty_qa_log.csv')
-    reviews["question"]=reviews["question"].drop_duplicates()
-    reviews["question"].dropna()
-    concatenated_string = ' '.join(reviews['question'].dropna())
-    qa,llm = retrieval_qa_pipline(device_type, use_history=conversation_history, promptTemplate_type=model_type)
-    chain = create_extraction_chain(llm, PERSONAL_INFO_SCHEMA,input_formatter="text_prefix")
-    response = chain.run(concatenated_string)["data"]
-    return {"prompts":response}
+    text=''
+    df=pd.read_csv(f'./local_chat_history/{conversation_id}_qa_log.csv')
+    for x in range(len(df)):
+        text += df['question'][x] + df['answer'][x]
+    #text = text + df['answer'][x]
+    text=text.lower()
+    df["question"]=df["question"].drop_duplicates()
+    df["question"].dropna()
+    concatenated_string = ' '.join(df['question'].dropna())
+    repo_id = "mistralai/Mistral-7B-Instruct-v0.2"
+    load_dotenv()
+    os.environ["HUGGINGFACEHUB_API_TOKEN"] = "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"
+
+    HUGGINGFACEHUB_API_TOKEN = "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"
+    llm = HuggingFaceEndpoint(repo_id = repo_id,temperature= 0.5,max_new_token=128,token = HUGGINGFACEHUB_API_TOKEN)
+    schema , validator = from_pydantic(extraction)
+    chain = create_extraction_chain(llm,schema,encoder_or_encoder_class="json",validator=validator)
+    # response = chain.run(concatenated_string)["data"]
+    response ={"perosnal_details":{}}
+    extracted_name=chain.run(text)["validated_data"].name[0]
+    extracted_day=chain.run(text)["validated_data"].day[0] 
+    extracted_time=chain.run(text)["validated_data"].time[0] 
+    response = {
+                "personal_details": {
+                    "name":extracted_name,
+                    "appointment_day":extracted_day,
+                    "appointment_time":extracted_time
+                }
+                
+            }
+    
+    return {"data":response}
     
 
 @router.post("/prompt_agent/{conversation_id}", status_code=status.HTTP_200_OK)

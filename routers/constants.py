@@ -2,12 +2,14 @@ import os
 
 # from dotenv import load_dotenv
 # from chromadb.config import Settings
-
+import enum
 # https://python.langchain.com/en/latest/modules/indexes/document_loaders/examples/excel.html?highlight=xlsx#microsoft-excel
 from langchain.document_loaders import CSVLoader, PDFMinerLoader, TextLoader, UnstructuredExcelLoader, Docx2txtLoader
 from langchain.document_loaders import UnstructuredFileLoader, UnstructuredMarkdownLoader
 from langchain.document_loaders import UnstructuredHTMLLoader
-
+from pydantic import BaseModel,Field
+from typing import Optional
+from typing import List
 from kor.nodes import Object, Text, Number
 from kor import extract_from_documents, from_pydantic, create_extraction_chain
 # load_dotenv()
@@ -103,8 +105,10 @@ EMBEDDING_MODEL_NAME = "hkunlp/instructor-large"  # Uses 1.5 GB of VRAM (High Ac
 # MODEL_ID = "TheBloke/Llama-2-13b-Chat-GGUF"
 # MODEL_BASENAME = "llama-2-13b-chat.Q4_K_M.gguf"
 
-MODEL_ID = "TheBloke/Llama-2-7b-Chat-GGUF"
-MODEL_BASENAME = "llama-2-7b-chat.Q4_K_M.gguf"
+# MODEL_ID = "TheBloke/Llama-2-7b-Chat-GGUF"
+MODEL_ID = "tiiuae/falcon-7b-instruct"
+# MODEL_BASENAME = "llama-2-7b-chat.Q4_K_M.gguf"
+MODEL_BASENAME = None
 
 # MODEL_ID = "TheBloke/Mistral-7B-Instruct-v0.1-GGUF"
 # MODEL_BASENAME = "mistral-7b-instruct-v0.1.Q8_0.gguf"
@@ -222,3 +226,39 @@ PERSONAL_INFO_SCHEMA = Object(
 )
 
 
+class requirements(enum.Enum):
+    name = "name"
+    day = "day"
+    time = "time"
+    phone_number = "phone_number"
+
+class extraction(BaseModel):
+    name : Optional[List[str]] = Field(
+        default=None, description=" The name that the patient or user will provide",
+        examples=[("My name is Om Tarkunde","Om Tarkunde"),
+        (" Om Tarkunde","Om Tarkunde"),
+        (" name Aryaman Sinha","Aryaman Sinha"),
+        ]
+    )
+
+    day : Optional[List[str]] = Field(
+        default=None, description=" The day that the patient or user will provide",
+        examples=[("sunday and 8.30pm","sunday"),
+                  ("Sunday is the day","Sunday"),
+                  ("I choose Monday","Monday")]
+    )
+
+    time : Optional[List[str]] = Field(
+        default=None, description=" The time that the patient or user will provide",
+        examples=[("sunday and 8.30pm","8:30pm"),
+                  ("time I prefer is 5:00 am","5:00 am")]
+    )
+    phone_number: Optional[List[int]] = Field(
+    default=None, description=" The phone number that the patient or user will provide",
+    examples=[
+        ("My contact is 4561237890", "4561237890"),
+        ("4561237890", "4561237890"),
+        ("number 1234567888", "1234567888"),
+        ("my phone number is 7020588856", "7020588856"),
+        ("Great, I'd be happy to assist you with booking an appointment with Dr. Jitin. Can you please tell me your contact information? yeah sure 9075898463.Great, I'd be happy to assist you with booking an appointment with Dr. Jitin. Can you please tell me your preferred appointment day and time? Keep in mind that Dr. Jitin's available days and times are Monday, Wednesday from 7pm to 9pm, and Saturday, Sunday from 1pm to 8pm.","9075898463")]
+    )
