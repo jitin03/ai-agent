@@ -1,5 +1,5 @@
 import sys
-
+import os
 import torch
 
 if sys.platform != "darwin":
@@ -7,9 +7,10 @@ if sys.platform != "darwin":
 
 from huggingface_hub import hf_hub_download
 from langchain.llms import LlamaCpp
-from transformers import AutoModelForCausalLM, AutoTokenizer, LlamaForCausalLM, LlamaTokenizer, BitsAndBytesConfig
+from transformers import AutoModelForCausalLM, AutoTokenizer, LlamaForCausalLM, LlamaTokenizer, BitsAndBytesConfig,AutoModelForSeq2SeqLM
 from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
 from langchain.callbacks.manager import CallbackManager
+from IndicTransTokenizer import IndicProcessor, IndicTransTokenizer
 
 from .constants import CONTEXT_WINDOW_SIZE, MAX_NEW_TOKENS, MODELS_PATH, N_BATCH, N_GPU_LAYERS
 
@@ -117,6 +118,46 @@ def load_quantized_model_qptq(model_id, model_basename, device_type, logging):
     )
     return model, tokenizer
 
+def load_indic_trans2_model(model_id,device_type,logging,direction,bnb_config=None):
+    ROOT_DIRECTORY = os.path.dirname(os.path.realpath(__file__))
+    if False:
+        logging.info("Using LlamaTokenizer")
+        tokenizer = LlamaTokenizer.from_pretrained(model_id, cache_dir=MODELS_PATH)
+        model = LlamaForCausalLM.from_pretrained(model_id, cache_dir=MODELS_PATH)
+    else:
+        logging.info("Using IndicTransTokenizer for indicTrans2 models")
+        tokenizer = IndicTransTokenizer(direction=direction)
+        logging.info("Tokenizer loaded")
+        if bnb_config:
+            bnb_config = BitsAndBytesConfig(
+                    load_in_4bit=True,
+                    bnb_4bit_use_double_quant=True,
+                    bnb_4bit_quant_type="nf4",
+                    bnb_4bit_compute_dtype=torch.float16
+                    )
+        else:
+            bnb_config = None
+        model = AutoModelForSeq2SeqLM.from_pretrained(
+            model_id,
+            device_map="auto",
+            torch_dtype=torch.float16,
+            low_cpu_mem_usage=True,
+            cache_dir=MODELS_PATH,
+            trust_remote_code=True,  # set these if you are using NVIDIA GPU
+            quantization_config=bnb_config
+           # load_in_4bit=True,
+           # bnb_4bit_quant_type="nf4",
+           # bnb_4bit_compute_dtype=torch.float16,
+           # max_memory={0: "15GB"},  # Uncomment this line with you encounter CUDA out of memory errors
+        )
+        if bnb_config == None:
+            model = model.to(device_type)
+            if device_type == "cuda":
+                model.half()
+        # model.tie_weights()
+        model.eval()
+    return model, tokenizer
+    
 
 def load_full_model(model_id, model_basename, device_type, logging):
     """
@@ -140,14 +181,14 @@ def load_full_model(model_id, model_basename, device_type, logging):
     - The function uses the `from_pretrained` method to load both the model and the tokenizer.
     - Additional settings are provided for NVIDIA GPUs, such as loading in 4-bit and setting the compute dtype.
     """
-
+    ROOT_DIRECTORY = os.path.dirname(os.path.realpath(__file__))
     if device_type.lower() in ["mps", "cpu"]:
         logging.info("Using LlamaTokenizer")
-        tokenizer = LlamaTokenizer.from_pretrained(model_id, cache_dir="./models/")
-        model = LlamaForCausalLM.from_pretrained(model_id, cache_dir="./models/")
+        tokenizer = LlamaTokenizer.from_pretrained(model_id, cache_dir=MODELS_PATH)
+        model = LlamaForCausalLM.from_pretrained(model_id, cache_dir=MODELS_PATH)
     else:
         logging.info("Using AutoModelForCausalLM for full models")
-        tokenizer = AutoTokenizer.from_pretrained(model_id, cache_dir="./models/")
+        tokenizer = AutoTokenizer.from_pretrained(model_id, cache_dir=MODELS_PATH)
         logging.info("Tokenizer loaded")
         bnb_config = BitsAndBytesConfig(
                 load_in_4bit=True,

@@ -13,15 +13,28 @@ from langchain.prompts import PromptTemplate
 # Read the given context before answering questions and think step by step. If you can not answer a user question based on 
 # the provided context, inform the user. Do not use any other information for answering user."""   
 # Assist a patient in booking an appointment for a doctor by asking mandaroty details their name, contact information, and preferred appointment day and time before booking the appointment and once you have name, contact and data and time complete the appointment for user.
-system_prompt="""I want you to act as a Assistant at clinic appointment scheduler. 
 
- You must ask patient details i.e. name, phone and date and time before booking the appointment and once you have name, contact and data and time complete the appointment for user.
+system_prompt="""I want you to act as a Assistant at clinic appointment scheduler. 
+You must ask patient details i.e. name, phone and date and time before booking the appointment and once you have name, contact and data and time complete the appointment for patient.
 Ask each question sequentially and keep your responses concise. For Example :
-Question 1: Can you please tell your name?
-Question 2: Can you please tell me your contact number?.
-Question 2: Can you please tell me your preffered day and time for appointment?.
-Read the given context before answering questions and think step by step. If you can not answer a user question based on 
+Question 1: Can you please tell me your preffered day and time for appointment?.
+Question 2: Can you please tell your name?
+Question 3: Can you please tell me your contact number?.
+
+Read the given context before answering questions and think step by step.
+You must confirm the appointment details with patient. If you can not answer a user question based on 
 the provided context, inform the user. Do not use any other information for answering user."""
+
+# hotel_system_prompt="""I want you to act as a Virtual agent at a cafe managing customer calls, answering queries about menu items and assisting with table bookings for fine dining experiences.
+# Be knowledgeable about the restaurant's offerings and provide excellent customer service.
+# Ask each question sequentially and keep your responses concise. For Example :
+# Question 1: Can you please tell me the occasion ?.
+# Question 2: Can you please tell your name?
+# Question 3: Can you please tell me your contact number?.
+
+# Read the given context before answering questions and think step by step.
+# You must confirm the appointment details with patient. If you can not answer a user question based on 
+# the provided context, inform the user. Do not use any other information for answering user."""
 
 def get_prompt_template(system_prompt=system_prompt, promptTemplate_type=None, history=[]):
  
@@ -70,7 +83,8 @@ def get_prompt_template(system_prompt=system_prompt, promptTemplate_type=None, h
             chat_history_str = "\n".join([f"{message['role']}: {message['content']}" for message in history])
             instruction = """
             Context: {history} \n {context}
-            User: {question}"""
+            ### Input: {question}
+            ### Response:"""
             final_template = instruction.replace("{history}",chat_history_str)
             prompt_template = B_INST + SYSTEM_PROMPT + final_template + E_INST
             prompt = PromptTemplate(input_variables=["history", "context", "question"], template=prompt_template)
@@ -133,7 +147,7 @@ def get_prompt_template(system_prompt=system_prompt, promptTemplate_type=None, h
         ai_prefix="### Response",
         input_key="question",
         output_key="output_text",
-        return_messages=False,
+        return_messages=True,
     )
     # memory = ConversationBufferMemory(input_key="question", memory_key="history")
 
