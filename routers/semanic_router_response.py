@@ -32,7 +32,8 @@ def chitchat():
     
 def greetings():
     return(
-        "Hello! Thank you for calling our Clinic. I'm AI agent , How can I assist you today?"
+        "Hello! Thank you for calling XYZ Cafe. How can I assist you today?"
+        # "Hello! Thank you for calling our Clinic. I'm AI agent , How can I assist you today?"
     )
 
 def done_task():

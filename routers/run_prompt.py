@@ -108,18 +108,18 @@ conversation_index = {}
 appointment_form_index=0
 INTIAL_CONVERSTATION = {"conversation": {"role": "system", "content": "You are a helpful assistant."}}
 llm = ChatGroq(temperature=0, groq_api_key="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", model_name="mixtral-8x7b-32768")
-llmcache = SemanticCache(
-        name="llmcache",
-         ttl=360,
-        redis_url=REDIS_URL
-        )
-embeddings = get_embeddings(device_type)
-rds = Redis.from_existing_index(
-    embedding=embeddings,
-    index_name=INDEX_NAME,
-    schema=INDEX_SCHEMA,
-    redis_url=REDIS_URL,
-    )
+# llmcache = SemanticCache(
+#         name="llmcache",
+#          ttl=360,
+#         redis_url=REDIS_URL
+#         )
+# embeddings = get_embeddings(device_type)
+# rds = Redis.from_existing_index(
+#     embedding=embeddings,
+#     index_name=INDEX_NAME,
+#     schema=INDEX_SCHEMA,
+#     redis_url=REDIS_URL,
+#     )
 class Message(BaseModel):
     role: str
     content: str
@@ -278,7 +278,7 @@ def retrieval_qa_pipline(device_type, use_history, promptTemplate_type="llama"):
     their respective huggingface repository, project page or github repository.
     """
 
-    # embeddings = get_embeddings(device_type)
+    embeddings = get_embeddings(device_type)
 
     logging.info(f"Loaded embeddings from {EMBEDDING_MODEL_NAME}")
 
@@ -289,12 +289,12 @@ def retrieval_qa_pipline(device_type, use_history, promptTemplate_type="llama"):
    # store user queries and LLM responses in the semantic cache
     # print(REDIS_URL)
 
-    # rds = Redis.from_existing_index(
-    # embedding=embeddings,
-    # index_name=INDEX_NAME,
-    # schema=INDEX_SCHEMA,
-    # redis_url=REDIS_URL,
-    # )
+    rds = Redis.from_existing_index(
+    embedding=embeddings,
+    index_name=INDEX_NAME,
+    schema=INDEX_SCHEMA,
+    redis_url=REDIS_URL,
+    )
     # basic "top 4" vector search on a given query
     rds.similarity_search_with_score(query="Profit margins", k=4)
     # retriever=rds.as_retriever(search_type="similarity_distance_threshold",search_kwargs={"distance_threshold":0.5}),
@@ -472,7 +472,7 @@ async def prompt_agent(conversation_id:str,request: Prompt):
         print("route.name")
         print(route.name)
         
-        if route.name == "appointment_inquiry" or  route.name== None or route.name == "greetings":
+        if route.name == "appointment_inquiry" or  route.name== None :
             
             if response := llmcache.check(prompt=user_prompt,return_fields=["prompt", "response"]):
         # if False:
@@ -499,9 +499,9 @@ async def prompt_agent(conversation_id:str,request: Prompt):
             answer = politics()
         elif route.name == "chitchat":
             answer = chitchat()
-        # elif route.name == "greetings":
-        #     print("inside greetings now")
-        #     answer = greetings()
+        elif route.name == "greetings":
+            print("inside greetings now")
+            answer = greetings()
         elif route.name=="end_conversation":
             answer = end_conversation()
     
@@ -578,11 +578,11 @@ async def indic_prompt_agent(conversation_id:str,request: Prompt):
         qa,llm = retrieval_qa_pipline(device_type, use_history=existing_conversation["conversation_history"], promptTemplate_type=model_type)
     
         rl = RouteLayer(encoder=encoder, routes=routes, llm=llm)
-        # llmcache = SemanticCache(
-        # name="llmcache",
-        #  ttl=360,
-        # redis_url=REDIS_URL
-        # )
+        llmcache = SemanticCache(
+        name="llmcache",
+         ttl=360,
+        redis_url=REDIS_URL
+        )
         route = rl(user_prompt)
         print("route.name")
         print(route.name)
