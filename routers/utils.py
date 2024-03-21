@@ -149,6 +149,6 @@ def batch_translate(input_sentences, src_lang, tgt_lang, model, tokenizer, ip,de
 
 
 def translate_paragraph(input_text, src_lang, tgt_lang, model, tokenizer, ip,device_type):
-    # input_sentences = split_sentences(input_text, src_lang)
-    translated_text = batch_translate(input_text, src_lang, tgt_lang, model, tokenizer, ip,device_type)
+    input_sentences = split_sentences(input_text, src_lang)
+    translated_text = batch_translate(input_sentences, src_lang, tgt_lang, model, tokenizer, ip,device_type)
     return " ".join(translated_text)

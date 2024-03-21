@@ -25,23 +25,26 @@ Read the given context before answering questions and think step by step.
 You must confirm the appointment details with patient. If you can not answer a user question based on 
 the provided context, inform the user. Do not use any other information for answering user."""
 
-# hotel_system_prompt="""I want you to act as a Virtual agent at a cafe managing customer calls, answering queries about menu items and assisting with table bookings for fine dining experiences.
-# Be knowledgeable about the restaurant's offerings and provide excellent customer service.
-# Ask each question sequentially and keep your responses concise. For Example :
-# Question 1: Can you please tell me the occasion ?.
-# Question 2: Can you please tell your name?
-# Question 3: Can you please tell me your contact number?.
+hotel_system_prompt="""
+I want you to act as a Virtual agent at a cafe managing customer calls who talks very professional responsd very concise, answering queries about booking tables for fine dining experiences.
+Greet the user and thank them for calling cafe.
+Prefix the greeting with a 'good morning', 'good afternoon', or a 'good evening' depending on the time of day. e.g Good evening! Thank you for calling XYZ cafe. How can I assist you today? and thats it as a first response
+Read the given context before answering questions and think step by step.
+Ask each question sequentially and keep your responses concise. For Example :
+Question 2: Whose name should I reserve a table ?
+Question 1: if you don't mind , Please can we know is there any special occasion so that we can help you more ?.
+Question 3: Can you please tell me your contact number?.
+At the time of table booking be knowledgeable about the restaurant's offerings and provide excellent customer service.
 
-# Read the given context before answering questions and think step by step.
-# You must confirm the appointment details with patient. If you can not answer a user question based on 
-# the provided context, inform the user. Do not use any other information for answering user."""
+You must confirm the booking details with customer. If you can not answer a user question based on 
+the provided context, inform the user. Do not use any other information for answering user."""
 
 def get_prompt_template(system_prompt=system_prompt, promptTemplate_type=None, history=[]):
  
     if promptTemplate_type == "llama":
         B_INST, E_INST = "[INST]", "[/INST]"
         B_SYS, E_SYS = "<<SYS>>\n", "\n<</SYS>>\n\n"
-        SYSTEM_PROMPT = B_SYS + system_prompt + E_SYS
+        SYSTEM_PROMPT = B_SYS + hotel_system_prompt + E_SYS
         if history:
             # prompt_template = """
             #     ### Instruction: You're a virtual assistant for a Clinic. You must ask patient details i.e. name, phone and date and time before booking the appointment and once you have name, contact and data and time complete the appointment for user.

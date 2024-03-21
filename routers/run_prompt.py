@@ -107,7 +107,7 @@ conversation_history=[]
 conversation_index = {}
 appointment_form_index=0
 INTIAL_CONVERSTATION = {"conversation": {"role": "system", "content": "You are a helpful assistant."}}
-llm = ChatGroq(temperature=0, groq_api_key="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", model_name="llama2-70b-4096")
+llm = ChatGroq(temperature=0, groq_api_key="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", model_name="mixtral-8x7b-32768")
 llmcache = SemanticCache(
         name="llmcache",
          ttl=360,
@@ -472,7 +472,7 @@ async def prompt_agent(conversation_id:str,request: Prompt):
         print("route.name")
         print(route.name)
         
-        if route.name == "appointment_inquiry" or  route.name== None:
+        if route.name == "appointment_inquiry" or  route.name== None or route.name == "greetings":
             
             if response := llmcache.check(prompt=user_prompt,return_fields=["prompt", "response"]):
         # if False:
@@ -499,9 +499,9 @@ async def prompt_agent(conversation_id:str,request: Prompt):
             answer = politics()
         elif route.name == "chitchat":
             answer = chitchat()
-        elif route.name == "greetings":
-            print("inside greetings now")
-            answer = greetings()
+        # elif route.name == "greetings":
+        #     print("inside greetings now")
+        #     answer = greetings()
         elif route.name=="end_conversation":
             answer = end_conversation()
     
@@ -558,7 +558,7 @@ async def indic_prompt_agent(conversation_id:str,request: Prompt):
     src_lang, tgt_lang = "hin_Deva", "eng_Latn"
     temp =[]
     temp.append(user_prompt)
-    en_translated_text = translate_paragraph(temp, src_lang, tgt_lang, indic_en_model, indic_en_tokenizer, ip,device_type)
+    en_translated_text = translate_paragraph(user_prompt, src_lang, tgt_lang, indic_en_model, indic_en_tokenizer, ip,device_type)
   
     user_prompt=en_translated_text
     if user_prompt:
@@ -635,7 +635,7 @@ async def indic_prompt_agent(conversation_id:str,request: Prompt):
         src_lang, tgt_lang = "eng_Latn", "hin_Deva"
         temp2=[]
         temp2.append(answer)
-        en_translated_text = translate_paragraph(temp2, src_lang, tgt_lang, en_indic_model, en_indic_tokenizer, ip,device_type)
+        en_translated_text = translate_paragraph(answer, src_lang, tgt_lang, en_indic_model, en_indic_tokenizer, ip,device_type)
         prompt_response_dict = {
                 "Prompt": request.prompt,
                 "Answer": en_translated_text,
