@@ -26,18 +26,15 @@ You must confirm the appointment details with patient. If you can not answer a u
 the provided context, inform the user. Do not use any other information for answering user."""
 
 hotel_system_prompt="""
-I want you to act as a Virtual agent at a cafe managing customer calls who talks very professional responsd very concise.
-Greet the user and thank them for calling cafe.
-Prefix the greeting with a 'good morning', 'good afternoon', or a 'good evening' depending on the time of day. e.g Good evening! Thank you for calling XYZ cafe. How can I assist you today?
+I want you to act as a Virtual agent at a cafe managing customer calls who talks very professional responsd very concise, answering queries about booking tables for fine dining experiences.
 Read the given context before answering questions and think step by step.
-Ask each question one by one only. For Example :
-Question 2: Whose name should I reserve a table ?
-Question 1: if you don't mind , Please can we know is there any special occasion so that we can help you more ?.
+Ask each question one by one only and keep your responses short. For Example :
+Question 1: Whose name should I reserve a table ?
+Question 2: if you don't mind , Please can we know is there any special occasion so that we can help you more ?.
 Question 3: Can you please tell me your contact number?.
-
 You must confirm the booking details with customer. If you can not answer a user question based on 
 the provided context, inform the user. Do not use any other information for answering user."""
-# At the time of table booking be knowledgeable about the restaurant's offerings and provide excellent customer service.
+# At the end of table booking be knowledgeable about the restaurant's offerings and provide excellent customer service.
 def get_prompt_template(system_prompt=system_prompt, promptTemplate_type=None, history=[]):
  
     if promptTemplate_type == "llama":
@@ -45,43 +42,7 @@ def get_prompt_template(system_prompt=system_prompt, promptTemplate_type=None, h
         B_SYS, E_SYS = "<<SYS>>\n", "\n<</SYS>>\n\n"
         SYSTEM_PROMPT = B_SYS + hotel_system_prompt + E_SYS
         if history:
-            # prompt_template = """
-            #     ### Instruction: You're a virtual assistant for a Clinic. You must ask patient details i.e. name, phone and date and time before booking the appointment and once you have name, contact and data and time complete the appointment for user.
-            #     Question 1: Can you please tell your name?
-            #     Question 2: Can you please tell me your contact number?
-                
-            #     Always keep your reply short only.
-                
-            #     Use the chat history \n
-            #     Chat History:\n\n{history} \n
-            #     and the following information 
-            #     \n\n {context}
-            #     to answer in a helpful manner to the question. If you don't know the answer -
-            #     say that you don't know. 
-                
-            #     ### Input: {question}
-            #     ### Response:
-            #     """.strip()
-            # # """
-            #             # prompt_template = '''
-            #             # Your name is AI Agent. You are a virtual assistant for a Clinic.
-            #             #             Here you can describe personality traits and job duties in plain language.
-            #             #             ## Greeting Rules
-            #             #             Greet the user and thank them for calling Clinic
-            #             #             Prefix the greeting with a 'good morning', 'good afternoon', or a 'good evening' depending on the time of day.
-            #             # ----------------
-            #             # {history} \n {context}
-            #             #
-            #             # Question: {question}
-            #             # Helpful Answer:'''
-            #             # instruction = """
-            # # Context: {history} \n {context}
-            # # User: {question}"""
-            # chat_history_str = "\n".join([f"{message['role']}: {message['content']}" for message in history])
-            # final_template=prompt_template.replace("{history}",chat_history_str)
-            # prompt_template = B_INST + final_template + E_INST
-            # prompt = PromptTemplate(input_variables=["context", "question"], template=prompt_template)
-            # # prompt = PromptTemplate(input_variables=["context", "question", "history"], template=prompt_template)
+
             chat_history_str = "\n".join([f"{message['role']}: {message['content']}" for message in history])
             instruction = """
             Context: {history} \n {context}
@@ -149,7 +110,7 @@ def get_prompt_template(system_prompt=system_prompt, promptTemplate_type=None, h
         ai_prefix="### Response",
         input_key="question",
         output_key="output_text",
-        return_messages=True,
+        return_messages=False,
     )
     # memory = ConversationBufferMemory(input_key="question", memory_key="history")
 

@@ -1,6 +1,7 @@
 import os
 import csv
 import torch
+
 from datetime import datetime
 # from .constants import EMBEDDING_MODEL_NAME
 from langchain.embeddings import HuggingFaceInstructEmbeddings
@@ -105,15 +106,19 @@ def split_sentences(input_text, lang):
         input_sentences = [sent.replace("\xad", "") for sent in input_sentences]
     else:
         input_sentences = sentence_split(input_text, lang=flores_codes[lang], delim_pat=DELIM_PAT_NO_DANDA)
+    print("moses is not killing")
     return input_sentences
 def batch_translate(input_sentences, src_lang, tgt_lang, model, tokenizer, ip,device_type):
-    BATCH_SIZE=4
+    print("its not here")
+    BATCH_SIZE=2
     translations = []
     for i in range(0, len(input_sentences), BATCH_SIZE):
         batch = input_sentences[i : i + BATCH_SIZE]
+        print(batch)
 
         # Preprocess the batch and extract entity mappings
         batch = ip.preprocess_batch(batch, src_lang=src_lang, tgt_lang=tgt_lang)
+        print(batch)
 
         # Tokenize the batch and generate input encodings
         inputs = tokenizer(
@@ -138,13 +143,13 @@ def batch_translate(input_sentences, src_lang, tgt_lang, model, tokenizer, ip,de
 
         # Decode the generated tokens into text
         generated_tokens = tokenizer.batch_decode(generated_tokens.detach().cpu().tolist(), src=False)
-
+        print(generated_tokens)
         # Postprocess the translations, including entity replacement
         translations += ip.postprocess_batch(generated_tokens, lang=tgt_lang)
-
-        del inputs
-        torch.cuda.empty_cache()
-
+        print("here is the problem")
+        # del inputs
+        # torch.cuda.empty_cache()
+   
     return translations
 
 
@@ -152,3 +157,5 @@ def translate_paragraph(input_text, src_lang, tgt_lang, model, tokenizer, ip,dev
     input_sentences = split_sentences(input_text, src_lang)
     translated_text = batch_translate(input_sentences, src_lang, tgt_lang, model, tokenizer, ip,device_type)
     return " ".join(translated_text)
+
+INDIC_DEMO_URL="https://demo-api.models.ai4bharat.org/inference/translation/v2"

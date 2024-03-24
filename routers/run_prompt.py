@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Path
 import logging
 import asyncio
 import pandas as pd
+import requests
 import os
 import json
 import redis
@@ -20,7 +21,7 @@ from semantic_router.encoders import HuggingFaceEncoder
 from .semantic_routers import routes
 from .semanic_router_response import appointment_inquiry,politics,chitchat,greetings,done_task,end_conversation
 from .utils import log_to_csv
-from .utils import get_embeddings,batch_translate,translate_paragraph
+from .utils import get_embeddings,batch_translate,translate_paragraph,INDIC_DEMO_URL
 from langchain.chains import RetrievalQA
 from langchain.embeddings import HuggingFaceInstructEmbeddings
 from langchain.callbacks.manager import CallbackManager
@@ -31,7 +32,7 @@ from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler 
 from langchain.callbacks import AsyncIteratorCallbackHandler
 # from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
 from langchain.callbacks.manager import CallbackManager
-from langchain.vectorstores import Chroma
+from langchain_community.vectorstores import Chroma
 
 from typing import AsyncIterable
 from fastapi.middleware.cors import CORSMiddleware
@@ -57,7 +58,7 @@ from transformers import (
     GenerationConfig,
     pipeline,
 )
-from langchain.llms import HuggingFacePipeline
+from langchain_community.llms import HuggingFacePipeline
 from .load_models import (
     load_quantized_model_awq,
     load_quantized_model_gguf_ggml,
@@ -88,6 +89,7 @@ else:
 device_type = DEVICE_TYPE
 callback_manager = CallbackManager([StreamingStdOutCallbackHandler()])
 SHOW_SOURCES = True
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
 logging.info(f"Running on: {DEVICE_TYPE}")
 logging.info(f"Display Source Documents set to: {SHOW_SOURCES}")
 
@@ -107,7 +109,8 @@ conversation_history=[]
 conversation_index = {}
 appointment_form_index=0
 INTIAL_CONVERSTATION = {"conversation": {"role": "system", "content": "You are a helpful assistant."}}
-llm = ChatGroq(temperature=0, groq_api_key="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", model_name="mixtral-8x7b-32768")
+# llm = ChatGroq(temperature=0, groq_api_key="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", model_name="mixtral-8x7b-32768")
+llm = ChatGroq(temperature=0, groq_api_key="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", model_name="llama2-70b-4096")
 # llmcache = SemanticCache(
 #         name="llmcache",
 #          ttl=360,
@@ -120,6 +123,26 @@ llm = ChatGroq(temperature=0, groq_api_key="gsk_KZR2VF2qOyIduTVwvx2NWGdyb3FYlliO
 #     schema=INDEX_SCHEMA,
 #     redis_url=REDIS_URL,
 #     )
+
+
+ip = IndicProcessor(inference=True)
+rl = RouteLayer(encoder=encoder, routes=routes, llm=llm)
+llmcache = SemanticCache(
+        name="llmcache",
+         ttl=360,
+        redis_url=REDIS_URL
+        )
+embeddings = get_embeddings(device_type)
+rds = Redis.from_existing_index(
+    embedding=embeddings,
+    index_name=INDEX_NAME,
+    schema=INDEX_SCHEMA,
+    redis_url=REDIS_URL,
+    )
+    # basic "top 4" vector search on a given query
+rds.similarity_search_with_score(query="Profit margins", k=2)
+    # retriever=rds.as_retriever(search_type="similarity_distance_threshold",search_kwargs={"distance_threshold":0.5}),
+retriever = rds.as_retriever()
 class Message(BaseModel):
     role: str
     content: str
@@ -130,7 +153,7 @@ class Conversation(BaseModel):
 def create_messages(conversation):
     messages = []
     for message in conversation:
-        print(message)
+        
         # Get the role of the message
         role = message["role"]
         
@@ -154,8 +177,7 @@ def load_model_with_cache(cache_key, load_function, *args):
         return pickle.loads(cached_model)
     else:
         model = load_function(*args)
-        print(model)
-        print(type(model))
+        
         r.set(cache_key, pickle.dumps(model))
         return model
 # Define your model loading function
@@ -278,9 +300,9 @@ def retrieval_qa_pipline(device_type, use_history, promptTemplate_type="llama"):
     their respective huggingface repository, project page or github repository.
     """
 
-    embeddings = get_embeddings(device_type)
+    # embeddings = get_embeddings(device_type)
 
-    logging.info(f"Loaded embeddings from {EMBEDDING_MODEL_NAME}")
+    logging.info(f"Loaded embeddings from {embeddings}")
 
     # load the vectorstore
     # db = Chroma(persist_directory=PERSIST_DIRECTORY, embedding_function=embeddings, client_settings=CHROMA_SETTINGS)
@@ -289,22 +311,22 @@ def retrieval_qa_pipline(device_type, use_history, promptTemplate_type="llama"):
    # store user queries and LLM responses in the semantic cache
     # print(REDIS_URL)
 
-    rds = Redis.from_existing_index(
-    embedding=embeddings,
-    index_name=INDEX_NAME,
-    schema=INDEX_SCHEMA,
-    redis_url=REDIS_URL,
-    )
+    # rds = Redis.from_existing_index(
+    # embedding=embeddings,
+    # index_name=INDEX_NAME,
+    # schema=INDEX_SCHEMA,
+    # redis_url=REDIS_URL,
+    # )
     # basic "top 4" vector search on a given query
-    rds.similarity_search_with_score(query="Profit margins", k=4)
+    # rds.similarity_search_with_score(query="Profit margins", k=2)
     # retriever=rds.as_retriever(search_type="similarity_distance_threshold",search_kwargs={"distance_threshold":0.5}),
-    retriever = rds.as_retriever(search_type="mmr")
-    # retriever = db.as_retriever()
+    # retriever = rds.as_retriever()
+   
 
     # get the prompt template and memory if set by the user.
-    prompt, memory = get_prompt_template(promptTemplate_type=promptTemplate_type, history=use_history)
+    prompt,memory = get_prompt_template(promptTemplate_type=promptTemplate_type, history=use_history)
  
-    logging.info(prompt)
+    
     # load the llm pipeline
     # llm = load_model(device_type, model_id=MODEL_ID, model_basename=MODEL_BASENAME, LOGGING=logging)
     # llm = ChatGroq(temperature=0, groq_api_key="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", model_name="llama2-70b-4096")
@@ -315,19 +337,10 @@ def retrieval_qa_pipline(device_type, use_history, promptTemplate_type="llama"):
             retriever=retriever,
             return_source_documents=True,  # verbose=True,
             callbacks=callback_manager,
-            chain_type_kwargs={"prompt": prompt, "memory": memory},
+            chain_type_kwargs={"prompt": prompt,"memory":memory},
         )
-        print("memory:")
-        print(qa.combine_documents_chain.memory)
-        # qa = ConversationalRetrievalChain.from_llm(
-        #     llm,
-        #     chain_type="stuff",
-        #     retriever=retriever,
-        #     memory=memory,
-        #     combine_docs_chain_kwargs={"prompt": prompt},
-        #     return_source_documents=True,
-        #     verbose=True,
-        # )
+    
+    
         
         
     else:
@@ -451,9 +464,7 @@ async def prompt_agent(conversation_id:str,request: Prompt):
         existing_conversation_json = r.get(conversation_id)
         if existing_conversation_json:
             existing_conversation = json.loads(existing_conversation_json)
-            print("existing_conversation_json: ",existing_conversation_json)
         else:
-            print("no index for history")
             existing_conversation={}
             existing_conversation.setdefault("conversation_history", [])
     
@@ -462,32 +473,31 @@ async def prompt_agent(conversation_id:str,request: Prompt):
         conversation_history.append({'role':'Human','content':user_prompt})
         qa,llm = retrieval_qa_pipline(device_type, use_history=existing_conversation["conversation_history"], promptTemplate_type=model_type)
     
-        rl = RouteLayer(encoder=encoder, routes=routes, llm=llm)
-        llmcache = SemanticCache(
-        name="llmcache",
-         ttl=360,
-        redis_url=REDIS_URL
-        )
+        # rl = RouteLayer(encoder=encoder, routes=routes, llm=llm)
+        # llmcache = SemanticCache(
+        # name="llmcache",
+        #  ttl=360,
+        # redis_url=REDIS_URL
+        # )
         route = rl(user_prompt)
-        print("route.name")
-        print(route.name)
+     
         
         if route.name == "appointment_inquiry" or  route.name== None :
             
             if response := llmcache.check(prompt=user_prompt,return_fields=["prompt", "response"]):
-        # if False:
+    
                 print(response)
                 res =response[0]["response"]
                 answer= res
-                type(res)
+           
             else:
-                print("Empty cache")
+              
                 res = qa(user_prompt)
-                print("called llm and replying")
+                
                 process_llm_response(res)
                 answer, docs = res["result"], res["source_documents"]
 
-            print("from redis cache")
+            
             llmcache.store(
             prompt=user_prompt,
             response=answer,
@@ -495,29 +505,24 @@ async def prompt_agent(conversation_id:str,request: Prompt):
                 )
             
         elif route.name == "politics":
-            print("inside politics now")
+            
             answer = politics()
         elif route.name == "chitchat":
             answer = chitchat()
         elif route.name == "greetings":
-            print("inside greetings now")
+            
             answer = greetings()
         elif route.name=="end_conversation":
             answer = end_conversation()
     
         elif route.name == "done_task":
             answer = done_task()
-        # Print the result
-        print("\n\n> Question:")
-        print(user_prompt)
-        print("\n> Answer:")
-        print(answer)
-        print("\n> history:")
+    
         conversation_history.append({'role':'AI','content':answer})
         existing_conversation["conversation_history"]=conversation_history
-        print(json.dumps(conversation_history))
+        
         r.set(conversation_id, json.dumps(existing_conversation))
-        print(json.dumps(conversation_index))
+        
         prompt_response_dict = {
                 "Prompt": user_prompt,
                 "Answer": answer,
@@ -552,23 +557,50 @@ async def indic_prompt_agent(conversation_id:str,request: Prompt):
     # indic_en_model,indic_en_tokenizer = load_indic_trans2_model(device_type=device_type, model_id="ai4bharat/indictrans2-indic-en-1B", logging=logging,direction="indic-en")
     # indic_en_model,indic_en_tokenizer = load_model_with_cache(cache_key, load_indic_trans2_model_cached, device_type, "ai4bharat/indictrans2-indic-en-1B", logging, "indic-en")
     
-    ip = IndicProcessor(inference=True)
-    print("indic_en_tokenizer")
-    print(indic_en_tokenizer)
+    
+   
     src_lang, tgt_lang = "hin_Deva", "eng_Latn"
     temp =[]
     temp.append(user_prompt)
-    en_translated_text = translate_paragraph(user_prompt, src_lang, tgt_lang, indic_en_model, indic_en_tokenizer, ip,device_type)
+    payload = json.dumps({
+            "controlConfig": {
+                "dataTracking": True
+            },
+            "input": [
+                {
+                "source": user_prompt
+                }
+            ],
+            "config": {
+                "serviceId": "",
+                "language": {
+                "sourceLanguage": "hi",
+                "targetLanguage": "en",
+                "targetScriptCode": None,
+                "sourceScriptCode": None
+                }
+            }
+            })
+    headers = {
+            'Content-Type': 'application/json'
+            }
+        
+       
+    response = requests.request("POST", INDIC_DEMO_URL, headers=headers, data=payload)
+        
+    response_dict = json.loads(response.text)
+    
+    # en_translated_text = translate_paragraph(user_prompt, src_lang, tgt_lang, indic_en_model, indic_en_tokenizer, ip,device_type)
   
-    user_prompt=en_translated_text
+    user_prompt=response_dict['output'][0]['target']
     if user_prompt:
     
         existing_conversation_json = r.get(conversation_id)
         if existing_conversation_json:
             existing_conversation = json.loads(existing_conversation_json)
-            print("existing_conversation_json: ",existing_conversation_json)
+            
         else:
-            print("no index for history")
+            
             existing_conversation={}
             existing_conversation.setdefault("conversation_history", [])
     
@@ -577,32 +609,15 @@ async def indic_prompt_agent(conversation_id:str,request: Prompt):
         conversation_history.append({'role':'Human','content':user_prompt})
         qa,llm = retrieval_qa_pipline(device_type, use_history=existing_conversation["conversation_history"], promptTemplate_type=model_type)
     
-        rl = RouteLayer(encoder=encoder, routes=routes, llm=llm)
-        llmcache = SemanticCache(
-        name="llmcache",
-         ttl=360,
-        redis_url=REDIS_URL
-        )
-        route = rl(user_prompt)
-        print("route.name")
-        print(route.name)
-        
+        route = rl(user_prompt)    
         if route.name == "appointment_inquiry" or  route.name== None:
-            
             if response := llmcache.check(prompt=user_prompt,return_fields=["prompt", "response"]):
-        # if False:
-                print(response)
                 res =response[0]["response"]
                 answer= res
-                type(res)
             else:
-                print("Empty cache")
                 res = qa(user_prompt)
-                print("called llm and replying")
-                process_llm_response(res)
+                # process_llm_response(res)
                 answer, docs = res["result"], res["source_documents"]
-
-            print("from redis cache")
             llmcache.store(
             prompt=user_prompt,
             response=answer,
@@ -610,39 +625,62 @@ async def indic_prompt_agent(conversation_id:str,request: Prompt):
                 )
             
         elif route.name == "politics":
-            print("inside politics now")
+            
             answer = politics()
         elif route.name == "chitchat":
             answer = chitchat()
         elif route.name == "greetings":
-            print("inside greetings now")
+           
             answer = greetings()
         elif route.name=="end_conversation":
             answer = end_conversation()
     
         elif route.name == "done_task":
             answer = done_task()
-        # Print the result
-        print("\n\n> Question:")
-        print(user_prompt)
-        print("\n> Answer:")
-        print(answer)
-        print("\n> history:")
+        
         conversation_history.append({'role':'AI','content':answer})
         existing_conversation["conversation_history"]=conversation_history
         
         r.set(conversation_id, json.dumps(existing_conversation))
         src_lang, tgt_lang = "eng_Latn", "hin_Deva"
-        temp2=[]
-        temp2.append(answer)
-        en_translated_text = translate_paragraph(answer, src_lang, tgt_lang, en_indic_model, en_indic_tokenizer, ip,device_type)
+        
+        # en_translated_text = translate_paragraph(answer, src_lang, tgt_lang, en_indic_model, en_indic_tokenizer, ip,device_type)
+        
+        payload = json.dumps({
+            "controlConfig": {
+                "dataTracking": True
+            },
+            "input": [
+                {
+                "source": answer
+                }
+            ],
+            "config": {
+                "serviceId": "",
+                "language": {
+                "sourceLanguage": "en",
+                "targetLanguage": "hi",
+                "targetScriptCode": None,
+                "sourceScriptCode": None
+                }
+            }
+            })
+        headers = {
+            'Content-Type': 'application/json'
+            }
+        
+       
+        response = requests.request("POST", INDIC_DEMO_URL, headers=headers, data=payload)
+        
+        response_dict = json.loads(response.text)
+     
         prompt_response_dict = {
                 "Prompt": request.prompt,
-                "Answer": en_translated_text,
+                "Answer": response_dict['output'][0]['target'],
                 "history":existing_conversation
                 
             }
-        log_to_csv(user_prompt,answer,conversation_id)
+        # log_to_csv(user_prompt,answer,conversation_id)
         return prompt_response_dict, 200
     else:
         raise HTTPException(status_code=404, detail='No user prompt received')
