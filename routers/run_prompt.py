@@ -33,14 +33,14 @@ from langchain.callbacks import AsyncIteratorCallbackHandler
 # from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
 from langchain.callbacks.manager import CallbackManager
 from langchain_community.vectorstores import Chroma
-
+from datetime import timedelta,date
 from typing import AsyncIterable
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List
 from .constants import (
     # CHROMA_SETTINGS,
     EMBEDDING_MODEL_NAME, PERSIST_DIRECTORY, MODEL_ID, MODEL_BASENAME,
-    MAX_NEW_TOKENS,PERSONAL_INFO_SCHEMA,extraction)
+    MAX_NEW_TOKENS,PERSONAL_INFO_SCHEMA,extraction,reservation_extraction,reservation_requirements,Reservation_Schema,personal_info_data,user_id)
 from fastapi.responses import StreamingResponse
 # API queue addition
 from threading import Lock
@@ -71,6 +71,7 @@ from langchain.schema import (
     SystemMessage
 )
 
+
 ROLE_CLASS_MAP = {
     "AI": AIMessage,
     "Human": HumanMessage,
@@ -94,8 +95,8 @@ logging.info(f"Running on: {DEVICE_TYPE}")
 logging.info(f"Display Source Documents set to: {SHOW_SOURCES}")
 
 EMBEDDINGS = HuggingFaceInstructEmbeddings(model_name=EMBEDDING_MODEL_NAME, model_kwargs={"device": DEVICE_TYPE})
-indic_en_model,indic_en_tokenizer = load_indic_trans2_model(device_type="mps", model_id="ai4bharat/indictrans2-indic-en-1B", logging=logging,direction="indic-en")
-en_indic_model,en_indic_tokenizer = load_indic_trans2_model(device_type="mps", model_id="ai4bharat/indictrans2-en-indic-1B", logging=logging,direction="en-indic")
+# indic_en_model,indic_en_tokenizer = load_indic_trans2_model(device_type="mps", model_id="ai4bharat/indictrans2-indic-en-1B", logging=logging,direction="indic-en")
+# en_indic_model,en_indic_tokenizer = load_indic_trans2_model(device_type="mps", model_id="ai4bharat/indictrans2-en-indic-1B", logging=logging,direction="en-indic")
 router = APIRouter(
     prefix='/api/run-agent',
     tags=['agent']
@@ -110,7 +111,7 @@ conversation_index = {}
 appointment_form_index=0
 INTIAL_CONVERSTATION = {"conversation": {"role": "system", "content": "You are a helpful assistant."}}
 # llm = ChatGroq(temperature=0, groq_api_key="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", model_name="mixtral-8x7b-32768")
-llm = ChatGroq(temperature=0, groq_api_key="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", model_name="llama2-70b-4096")
+llm = ChatGroq(temperature=0.7, groq_api_key="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", model_name="llama2-70b-4096")
 # llmcache = SemanticCache(
 #         name="llmcache",
 #          ttl=360,
@@ -140,9 +141,9 @@ rds = Redis.from_existing_index(
     redis_url=REDIS_URL,
     )
     # basic "top 4" vector search on a given query
-rds.similarity_search_with_score(query="Profit margins", k=2)
+# rds.similarity_search_with_score(query="Profit margins", k=2)
     # retriever=rds.as_retriever(search_type="similarity_distance_threshold",search_kwargs={"distance_threshold":0.5}),
-retriever = rds.as_retriever()
+retriever = rds.as_retriever(search_kwargs={"k": 5})
 class Message(BaseModel):
     role: str
     content: str
@@ -441,6 +442,64 @@ async def get_personal_info(conversation_id: str):
             }
     
     return {"data":response}
+
+@router.get("/get_reservation_personal_info/{conversation_id}",status_code=status.HTTP_200_OK)
+async def get_reservation_personal_info(conversation_id: str):
+    device_type ="mps"
+    show_sources= False
+    use_history= True
+    model_type="llama"
+    text=''
+    df=pd.read_csv(f'./local_chat_history/{conversation_id}_qa_log.csv')
+    for x in range(len(df)):
+        text += df['question'][x] + df['answer'][x]
+    #text = text + df['answer'][x]
+    text=text.lower()
+    df["question"]=df["question"].drop_duplicates()
+    df["question"].dropna()
+    concatenated_string = ' '.join(df['question'].dropna())
+    url = "http://localhost:8000"
+    headers = {"x-key": user_id}
+    response = requests.post(f"{url}/extractors", json=personal_info_data, headers=headers)
+    extractor = response.json()
+    result = requests.post(
+    f"{url}/extract",
+    data={"extractor_id": extractor["uuid"],"text":concatenated_string},
+    
+    headers=headers,)
+    # repo_id = "mistralai/Mistral-7B-Instruct-v0.2"
+    # load_dotenv()
+    # os.environ["HUGGINGFACEHUB_API_TOKEN"] = "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"
+
+    # HUGGINGFACEHUB_API_TOKEN = "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"
+    # llm = HuggingFaceEndpoint(repo_id = repo_id,temperature= 0.5,max_new_token=128,token = HUGGINGFACEHUB_API_TOKEN)
+    # schema , validator = from_pydantic(reservation_extraction)
+    # chain = create_extraction_chain(llm,schema,encoder_or_encoder_class="json",validator=validator)
+    # today = date.today()
+
+    # if extracted_day.lower() == "today":
+    #     extracted_day = today
+    # elif extracted_day.lower() == "tomorrow":
+    #     extracted_day = today + timedelta(days=1)
+    # elif extracted_day.lower() == "day after tomorrow":
+    #     extracted_day = today + timedelta(days=2)
+    # # response = chain.run(concatenated_string)["data"]
+    # response ={"perosnal_details":{}}
+    # extracted_name=chain.run(text)["validated_data"].name[0]
+    # extracted_day=chain.run(text)["validated_data"].day[0] 
+    # extracted_time=chain.run(text)["validated_data"].time[0] 
+    # extracted_number=chain.run(text)["validated_data"].phone_number[0]
+    # response = {
+    #             "personal_details": {
+    #                 "name":extracted_name,
+    #                 "appointment_day":extracted_day,
+    #                 "appointment_time":extracted_time,
+    #                 "phone_number":extracted_number
+    #             }
+                
+    #         }
+    
+    return {"data":result.json()}
     
 
 @router.post("/prompt_agent/{conversation_id}", status_code=status.HTTP_200_OK)
@@ -493,9 +552,10 @@ async def prompt_agent(conversation_id:str,request: Prompt):
             else:
               
                 res = qa(user_prompt)
-                
-                process_llm_response(res)
-                answer, docs = res["result"], res["source_documents"]
+                print(res)
+                # process_llm_response(res)
+                answer = res["result"]
+                # answer, docs = res["result"], res["source_documents"]
 
             
             llmcache.store(
@@ -680,9 +740,9 @@ async def indic_prompt_agent(conversation_id:str,request: Prompt):
                 "history":existing_conversation
                 
             }
-        # log_to_csv(user_prompt,answer,conversation_id)
+        log_to_csv(user_prompt,answer,conversation_id)
         return prompt_response_dict, 200
     else:
         raise HTTPException(status_code=404, detail='No user prompt received')
 
-  
+

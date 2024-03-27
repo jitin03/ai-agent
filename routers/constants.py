@@ -1,5 +1,5 @@
 import os
-
+from uuid import uuid4
 # from dotenv import load_dotenv
 # from chromadb.config import Settings
 import enum
@@ -264,3 +264,63 @@ class extraction(BaseModel):
         ("my phone number is 7020588856", "7020588856"),
         ("Great, I'd be happy to assist you with booking an appointment with Dr. Jitin. Can you please tell me your contact information? yeah sure 9075898463.Great, I'd be happy to assist you with booking an appointment with Dr. Jitin. Can you please tell me your preferred appointment day and time? Keep in mind that Dr. Jitin's available days and times are Monday, Wednesday from 7pm to 9pm, and Saturday, Sunday from 1pm to 8pm.","9075898463")]
     )
+    
+    
+class reservation_requirements(enum.Enum):
+    name = "name"
+    day = "day"
+    time = "time"
+    phone_number = "phone_number"
+
+class reservation_extraction(BaseModel):
+    name : Optional[List[str]] = Field(
+        default=None, description=" The name that the patient or user will provide",
+        examples=[("My name is Om Tarkunde","Om Tarkunde"),
+        (" Om Tarkunde","Om Tarkunde"),
+        (" name Aryaman Sinha","Aryaman Sinha"),
+        ]
+    )
+
+    day : Optional[List[str]] = Field(
+        default=None, description=" The day that the patient or user will provide",
+        examples=[("sunday and 8.30pm","sunday"),
+                  ("Sunday is the day","Sunday"),
+                  ("I choose Monday","Monday")]
+    )
+
+    time : Optional[List[str]] = Field(
+        default=None, description=" The time that the patient or user will provide",
+        examples=[("sunday and 8.30pm","8:30pm"),
+                  ("time I prefer is 5:00 am","5:00 am")]
+    )
+    phone_number: Optional[List[str]] = Field(
+    default=None, description=" The phone number that the patient or user will provide",
+    examples=[
+        ("My contact is 4561237890", "4561237890"),
+        ("4561237890", "4561237890"),
+        ("number 1234567888", "1234567888"),
+        ("my phone number is 7020588856", "7020588856"),
+        ("Great, I'd be happy to assist you with booking an appointment with Dr. Jitin. Can you please tell me your contact information? yeah sure 9075898463.Great, I'd be happy to assist you with booking an appointment with Dr. Jitin. Can you please tell me your preferred appointment day and time? Keep in mind that Dr. Jitin's available days and times are Monday, Wednesday from 7pm to 9pm, and Saturday, Sunday from 1pm to 8pm.","9075898463")]
+    )
+
+class Schedule(BaseModel):
+    day: str
+    time: str
+class Reservation_Schema(BaseModel):
+    name: str
+    schedule: Schedule
+    contact_number: str
+    
+    
+user_id = str(uuid4())
+headers = {"x-key": user_id}
+
+personal_info_data = {
+    "user_id": user_id,
+    "description": "Personal information e.g name, contact number and schedule day and time.",
+    "schema": Reservation_Schema.schema(),
+    "instruction": (
+        "Extract Personal information e.g name, contact number and schedule day and time."
+        
+    )
+}

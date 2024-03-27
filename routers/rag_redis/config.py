@@ -75,4 +75,8 @@ INDEX_NAME = os.getenv("INDEX_NAME", "rag-redis")
 current_file_path = os.path.abspath(__file__)
 parent_dir = os.path.dirname(current_file_path)
 schema_path = os.path.join(parent_dir, "schema.yml")
-INDEX_SCHEMA = schema_path
+# INDEX_SCHEMA = schema_path
+vector_schema = {
+    "algorithm": "HNSW"
+}
+INDEX_SCHEMA = vector_schema
